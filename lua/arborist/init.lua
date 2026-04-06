@@ -43,43 +43,54 @@ function M.setup(opts)
   vim.fn.mkdir(query_dir, "p")
   vim.fn.mkdir(repo_cache, "p")
 
-  -- Registry readiness gate: on first boot (empty cache), the autocmd
-  -- does nothing until the registry fetch completes. This prevents
-  -- noise from UI filetypes that aren't in the ignore list yet.
-  local registry_ready = registry.load()
+  registry.load()
+
+  --- Detect lang for a buffer (uses filetype if set, otherwise matches filename).
+  --- @param buf integer
+  --- @return string?
+  local function detect_lang(buf)
+    local ft = vim.bo[buf].filetype
+    if ft == "" then
+      local name = vim.api.nvim_buf_get_name(buf)
+      if name ~= "" then ft = vim.filetype.match({ filename = name, buf = buf }) end
+    end
+    if not ft or ft == "" then return nil end
+    return vim.treesitter.language.get_lang(ft)
+  end
+
+  --- Install a parser for a lang if needed, then enable on all matching buffers.
+  --- @param lang string
+  local function ensure_parser(lang)
+    if install.should_skip(lang) then return end
+    if vim.treesitter.language.add(lang) == true then
+      -- Already available — just enable on any buffer that needs it
+      for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(buf) and detect_lang(buf) == lang then
+          enable(buf)
+        end
+      end
+      return
+    end
+    install.install(lang, function(err)
+      if err then return end
+      vim.schedule(function()
+        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+          if vim.api.nvim_buf_is_loaded(buf) and detect_lang(buf) == lang then
+            vim.treesitter.language.add(lang)
+            enable(buf)
+          end
+        end
+      end)
+    end, { silent = true })
+  end
 
   -- Auto-detect: install missing parsers on FileType
   local group = vim.api.nvim_create_augroup("arborist", { clear = true })
   vim.api.nvim_create_autocmd("FileType", {
     group = group,
     callback = function(ev)
-      if not registry_ready then return end
-
       local lang = vim.treesitter.language.get_lang(ev.match)
-      if not lang or install.should_skip(lang) then return end
-
-      -- Parser already available? Just enable it.
-      if vim.treesitter.language.add(lang) == true then
-        enable(ev.buf)
-        return
-      end
-
-      -- Not installed — async install, then enable on all matching buffers.
-      -- Errors are already logged by the install module.
-      install.install(lang, function(err)
-        if err then return end
-        vim.schedule(function()
-          for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-            if vim.api.nvim_buf_is_loaded(buf) then
-              local ft = vim.bo[buf].filetype
-              if vim.treesitter.language.get_lang(ft) == lang then
-                vim.treesitter.language.add(lang)
-                enable(buf)
-              end
-            end
-          end
-        end)
-      end, { silent = true })
+      if lang then ensure_parser(lang) end
     end,
   })
 
@@ -89,39 +100,13 @@ function M.setup(opts)
     group = group,
     once = true,
     callback = function()
-      if not registry_ready then return end
       local seen = {} --- @type table<string, boolean>
       for _, buf in ipairs(vim.api.nvim_list_bufs()) do
         if vim.api.nvim_buf_is_loaded(buf) then
-          local name = vim.api.nvim_buf_get_name(buf)
-          -- Use existing filetype or detect from filename
-          local ft = vim.bo[buf].filetype
-          if ft == "" and name ~= "" then
-            ft = vim.filetype.match({ filename = name, buf = buf })
-          end
-          if ft and ft ~= "" then
-            local lang = vim.treesitter.language.get_lang(ft)
-            if lang and not seen[lang] and not install.should_skip(lang) and vim.treesitter.language.add(lang) ~= true then
-              seen[lang] = true
-              install.install(lang, function(err)
-                if err then return end
-                vim.schedule(function()
-                  for _, b in ipairs(vim.api.nvim_list_bufs()) do
-                    if vim.api.nvim_buf_is_loaded(b) then
-                      local bft = vim.bo[b].filetype
-                      if bft == "" then
-                        local bname = vim.api.nvim_buf_get_name(b)
-                        if bname ~= "" then bft = vim.filetype.match({ filename = bname, buf = b }) end
-                      end
-                      if bft and vim.treesitter.language.get_lang(bft) == lang then
-                        vim.treesitter.language.add(lang)
-                        enable(b)
-                      end
-                    end
-                  end
-                end)
-              end, { silent = true })
-            end
+          local lang = detect_lang(buf)
+          if lang and not seen[lang] then
+            seen[lang] = true
+            ensure_parser(lang)
           end
         end
       end
@@ -157,17 +142,22 @@ function M.setup(opts)
     desc = "Remove all arborist-managed parsers and cache",
   })
 
-  -- Registry: fetch if stale, then activate autocmd and retrigger
+  -- Registry: fetch if stale, reload ignore list, scan buffers for missing parsers
   if registry.needs_refresh() then
     registry.fetch(function()
       install.set_ignore(registry.load_ignore())
       install.set_ignore(config.values.ignore)
-      registry_ready = true
-      -- Retrigger FileType on all open buffers now that registry is ready
+      -- Scan all buffers — parsers that failed heuristic resolution
+      -- may now succeed with the freshly loaded registry
       vim.schedule(function()
+        local seen = {}
         for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-          if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].filetype ~= "" then
-            vim.api.nvim_exec_autocmds("FileType", { buffer = buf })
+          if vim.api.nvim_buf_is_loaded(buf) then
+            local lang = detect_lang(buf)
+            if lang and not seen[lang] then
+              seen[lang] = true
+              ensure_parser(lang)
+            end
           end
         end
       end)

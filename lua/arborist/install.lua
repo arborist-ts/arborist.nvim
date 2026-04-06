@@ -15,7 +15,6 @@ local M = {}
 
 local active = {} --- @type table<string, boolean> In-flight installs
 local waiting = {} --- @type table<string, fun(err: string?)[]> Callbacks queued behind active installs
-local failed = {} --- @type table<string, boolean> Langs that failed (skip auto-retries)
 local ignore = {} --- @type table<string, boolean> Filetypes to never attempt
 
 --- @type boolean
@@ -58,7 +57,7 @@ end
 --- @param lang string
 --- @return boolean
 function M.should_skip(lang)
-  return ignore[lang] or failed[lang] or active[lang] or false
+  return ignore[lang] or active[lang] or false
 end
 
 --- Check if Neovim can load a parser for this language.
@@ -97,7 +96,6 @@ function M.install(lang, callback, opts)
     return
   end
   active[lang] = true
-  failed[lang] = nil
 
   -- Clean old artifacts
   pcall(os.remove, parser_dir .. "/" .. lang .. ".so")
@@ -115,9 +113,8 @@ function M.install(lang, callback, opts)
   -- Notify all callers (original + queued) and clean up state.
   local function finish(err, mode)
     active[lang] = nil
-    if err then
-      failed[lang] = true
-      if opts.silent then ignore[lang] = true end
+    if err and opts.silent then
+      ignore[lang] = true
     end
     if mode then
       lock.record(lang, mode)
