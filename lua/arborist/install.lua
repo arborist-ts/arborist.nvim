@@ -182,11 +182,9 @@ function M.install(lang, callback, opts)
       return
     end
     -- Heuristic failed — try registry for custom-org parsers
-    if not opts.silent then log.info("Looking up " .. lang .. " in registry...") end
     registry.resolve_async(lang, function(reg_info)
       if reg_info then
         info = reg_info
-        if not opts.silent then log.info("Found " .. lang .. ", cloning...") end
         compile.clone_repo(reg_info, repo_cache, function(_, reg_path)
           repo = reg_path
           check_done()
