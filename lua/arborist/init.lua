@@ -90,6 +90,15 @@ function M.setup(opts)
   end, {
     desc = "Update all installed parsers",
   })
+  vim.api.nvim_create_user_command("ArboristClean", function()
+    vim.fn.delete(parser_dir, "rf")
+    vim.fn.delete(cache_dir, "rf")
+    vim.fn.delete(data .. "/arborist-lock.json")
+    vim.fn.mkdir(parser_dir, "p")
+    log.info("Cleaned all parsers, cache, and lock file. Restart Neovim to re-fetch.")
+  end, {
+    desc = "Remove all installed parsers and cached data",
+  })
 
   -- Registry: load cache, fetch if stale (reload ignore list after fetch)
   registry.load()
