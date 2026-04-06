@@ -91,9 +91,13 @@ function M.setup(opts)
     desc = "Update all installed parsers",
   })
 
-  -- Registry: load cache, fetch if stale
+  -- Registry: load cache, fetch if stale (reload ignore list after fetch)
   registry.load()
-  if registry.needs_refresh() then registry.fetch() end
+  if registry.needs_refresh() then
+    registry.fetch(function()
+      install.set_ignore(registry.load_ignore())
+    end)
+  end
 
   -- Cadence-based auto-update
   if update.due(config.values.update_cadence) then
