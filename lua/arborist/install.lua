@@ -103,7 +103,7 @@ function M.install(lang, callback, opts)
   pcall(os.remove, parser_dir .. "/" .. lang .. ".so")
   pcall(os.remove, parser_dir .. "/" .. lang .. ".wasm")
 
-  log.info("Installing " .. lang .. "...")
+  if not opts.silent then log.info("Installing " .. lang .. "...") end
 
   local info = registry.resolve(lang)
   local try_wasm = config.values.prefer_wasm and M.wasm_supported ~= false
@@ -182,11 +182,11 @@ function M.install(lang, callback, opts)
       return
     end
     -- Heuristic failed — try registry for custom-org parsers
-    log.info("Looking up " .. lang .. " in registry...")
+    if not opts.silent then log.info("Looking up " .. lang .. " in registry...") end
     registry.resolve_async(lang, function(reg_info)
       if reg_info then
         info = reg_info
-        log.info("Found " .. lang .. ", cloning...")
+        if not opts.silent then log.info("Found " .. lang .. ", cloning...") end
         compile.clone_repo(reg_info, repo_cache, function(_, reg_path)
           repo = reg_path
           check_done()
