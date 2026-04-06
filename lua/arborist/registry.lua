@@ -186,7 +186,7 @@ end
 function M.needs_refresh()
   local stat = vim.uv.fs_stat(cache_dir .. "/parsers.toml")
   if not stat then return true end
-  return os.difftime(os.time(), stat.mtime.sec) / 86400 > 7
+  return os.difftime(os.time(), stat.mtime.sec) / 86400 > 1
 end
 
 --- Resolve a language to parser info.

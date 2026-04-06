@@ -17,6 +17,7 @@ function M.setup(opts)
   local config = require("arborist.config")
   local install = require("arborist.install")
   local lock = require("arborist.lock")
+  local log = require("arborist.log")
   local registry = require("arborist.registry")
   local update = require("arborist.update")
 
@@ -42,11 +43,18 @@ function M.setup(opts)
   vim.fn.mkdir(query_dir, "p")
   vim.fn.mkdir(repo_cache, "p")
 
+  -- Registry readiness gate: on first boot (empty cache), the autocmd
+  -- does nothing until the registry fetch completes. This prevents
+  -- noise from UI filetypes that aren't in the ignore list yet.
+  local registry_ready = registry.load()
+
   -- Auto-detect: install missing parsers on FileType
   local group = vim.api.nvim_create_augroup("arborist", { clear = true })
   vim.api.nvim_create_autocmd("FileType", {
     group = group,
     callback = function(ev)
+      if not registry_ready then return end
+
       local lang = vim.treesitter.language.get_lang(ev.match)
       if not lang or install.should_skip(lang) then return end
 
@@ -91,20 +99,33 @@ function M.setup(opts)
     desc = "Update all installed parsers",
   })
   vim.api.nvim_create_user_command("ArboristClean", function()
-    vim.fn.delete(parser_dir, "rf")
+    local lock_data = lock.read()
+    for lang in pairs(lock_data.parsers) do
+      pcall(os.remove, parser_dir .. "/" .. lang .. ".so")
+      pcall(os.remove, parser_dir .. "/" .. lang .. ".wasm")
+      vim.fn.delete(query_dir .. "/" .. lang, "rf")
+    end
     vim.fn.delete(cache_dir, "rf")
     vim.fn.delete(data .. "/arborist-lock.json")
-    vim.fn.mkdir(parser_dir, "p")
-    log.info("Cleaned all parsers, cache, and lock file. Restart Neovim to re-fetch.")
+    log.info("Cleaned " .. vim.tbl_count(lock_data.parsers) .. " parsers and cache. Restart to re-fetch.")
   end, {
-    desc = "Remove all installed parsers and cached data",
+    desc = "Remove all arborist-managed parsers and cache",
   })
 
-  -- Registry: load cache, fetch if stale (reload ignore list after fetch)
-  registry.load()
+  -- Registry: fetch if stale, then activate autocmd and retrigger
   if registry.needs_refresh() then
     registry.fetch(function()
       install.set_ignore(registry.load_ignore())
+      install.set_ignore(config.values.ignore)
+      registry_ready = true
+      -- Retrigger FileType on all open buffers now that registry is ready
+      vim.schedule(function()
+        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+          if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].filetype ~= "" then
+            vim.api.nvim_exec_autocmds("FileType", { buffer = buf })
+          end
+        end
+      end)
     end)
   end
 
