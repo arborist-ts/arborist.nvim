@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.2.1 — 2026-04-09
+
+- Fix tree-sitter indentation: `vim.treesitter.indentexpr()` does not exist in
+  Neovim, so `indentexpr` was silently a no-op (new lines always started at
+  column 0). Added `lua/arborist/indent.lua` which evaluates `indents.scm`
+  queries directly. ([#2](https://github.com/arborist-ts/arborist.nvim/issues/2))
+  Thanks to [@mike-lloyd03](https://github.com/mike-lloyd03) for reporting,
+  [@9seconds](https://github.com/9seconds) for pinpointing the root cause,
+  and [@daliusd](https://github.com/daliusd) for helping diagnose the issue.
+
 ## 0.2.0 — 2026-04-07
 
 - Enhanced queries: community-curated highlights, folds, indents, and injections
