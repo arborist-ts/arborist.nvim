@@ -8,7 +8,7 @@ local M = {}
 local function enable(buf)
   if not vim.api.nvim_buf_is_valid(buf) then return end
   pcall(vim.treesitter.start, buf)
-  vim.bo[buf].indentexpr = "v:lua.vim.treesitter.indentexpr()"
+  vim.bo[buf].indentexpr = "v:lua.require'arborist.indent'.indentexpr()"
 end
 
 --- Configure and start arborist. Safe to call multiple times (idempotent).
