@@ -15,7 +15,6 @@ local defaults = {
   prefer_wasm = true,
   update_cadence = "daily",
   compiler = vim.env.CC or "cc",
-  wasm_url = "https://unpkg.com/tree-sitter-wasms@latest/out/tree-sitter-%s.wasm",
   -- Install popular parsers at startup. Covers the most popular programming
   -- languages, common config formats, and parsers needed by popular plugins
   -- like render-markdown.nvim. Set to false to disable.

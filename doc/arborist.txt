@@ -63,9 +63,8 @@ prefer_wasm ~
     Type: `boolean`, Default: `true`
 
     Try WASM before native compilation. When enabled, arborist first attempts
-    to download a pre-built WASM parser from CDN, then tries building WASM
-    from source, and only falls back to native .so compilation as a last
-    resort.
+    to build a WASM parser from source, and only falls back to native .so
+    compilation if the WASM build fails or Neovim lacks wasmtime support.
 
                                                   *arborist.update_cadence*
 update_cadence ~
@@ -141,7 +140,7 @@ overrides ~
                                                         *:ArboristInstall*
 :ArboristInstall {lang}
     Install a parser for {lang}. Uses the same fallback chain as automatic
-    installation: WASM CDN, WASM build, native build.
+    installation: WASM build, then native build.
 
                                                          *:ArboristUpdate*
 :ArboristUpdate
@@ -193,15 +192,20 @@ Run `:checkhealth arborist` to verify your setup. The health check reports:
 
 Install chain ~
 
-When a parser is needed, arborist tries each method in order:
+When a parser is needed, arborist clones the source repo and tries each
+build method in order:
 
-  1. Download pre-built WASM from CDN (fastest, no compilation)
-  2. Clone source and run `tree-sitter build --wasm`
-  3. Clone source and run `tree-sitter build` (native .so)
+  1. `tree-sitter build --wasm` (WASM parser, sandboxed)
+  2. `tree-sitter build` (native .so)
+  3. `cc` compilation (fallback if tree-sitter CLI unavailable)
   4. Fail silently and add to ignore list
 
-Steps 1-2 are skipped if Neovim lacks wasmtime support, which arborist
-detects automatically at startup.
+After building a WASM parser, arborist verifies it actually loads. If it
+fails, it falls through to native compilation automatically.
+
+Step 1 is skipped if Neovim lacks wasmtime support. WASM support is detected
+lazily on the first install by verifying that a built parser loads
+successfully.
 
 Parser resolution ~
 
@@ -249,7 +253,6 @@ self-contained.
 
   - Neovim 0.12+
   - `git` (for cloning parser source repos)
-  - `curl` (for WASM CDN downloads)
   - `tree-sitter` CLI (for building parsers from source)
   - A C compiler (fallback when `tree-sitter` CLI is unavailable)
   - For WASM: Neovim built with `ENABLE_WASMTIME=ON`

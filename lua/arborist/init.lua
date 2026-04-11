@@ -3,6 +3,15 @@
 
 local M = {}
 
+--- Try to load a parser. Returns true only if the parser is available.
+--- Safe wrapper: language.add can throw on broken parser files.
+--- @param lang string
+--- @return boolean
+local function parser_loaded(lang)
+  local ok, result = pcall(vim.treesitter.language.add, lang)
+  return ok and result == true
+end
+
 --- Enable treesitter highlighting and indentation on a buffer.
 --- @param buf integer
 local function enable(buf)
@@ -68,7 +77,7 @@ function M.setup(opts)
   --- @param lang string
   local function ensure_parser(lang)
     if install.should_skip(lang) then return end
-    if vim.treesitter.language.add(lang) == true then
+    if parser_loaded(lang) then
       for _, buf in ipairs(vim.api.nvim_list_bufs()) do
         if vim.api.nvim_buf_is_loaded(buf) and detect_lang(buf) == lang then
           enable(buf)
@@ -81,7 +90,7 @@ function M.setup(opts)
       vim.schedule(function()
         for _, buf in ipairs(vim.api.nvim_list_bufs()) do
           if vim.api.nvim_buf_is_loaded(buf) and detect_lang(buf) == lang then
-            vim.treesitter.language.add(lang)
+            parser_loaded(lang)
             enable(buf)
           end
         end
@@ -106,7 +115,7 @@ function M.setup(opts)
     for _, lang in ipairs(to_install) do
       if install.should_skip(lang) then
         -- skip
-      elseif vim.treesitter.language.add(lang) == true then
+      elseif parser_loaded(lang) then
         for _, buf in ipairs(vim.api.nvim_list_bufs()) do
           if vim.api.nvim_buf_is_loaded(buf) and detect_lang(buf) == lang then
             enable(buf)
@@ -119,31 +128,29 @@ function M.setup(opts)
 
     if #needed == 0 then return end
     log.info("Installing parsers...")
-    local done, failed = 0, {}
-    for _, lang in ipairs(needed) do
-      install.install(lang, function(err)
-        done = done + 1
+    install.install_batch(needed, function(results)
+      local failed = {}
+      for lang, err in pairs(results) do
         if err then failed[#failed + 1] = lang .. " (" .. err .. ")" end
-        if done == #needed then
-          if #failed == 0 then
-            log.info("Parser installation complete")
-          else
-            log.warn("Failed: " .. table.concat(failed, ", "))
-          end
-          vim.schedule(function()
-            for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-              if vim.api.nvim_buf_is_loaded(buf) then
-                local blang = detect_lang(buf)
-                if blang then
-                  vim.treesitter.language.add(blang)
-                  enable(buf)
-                end
-              end
+      end
+      if #failed == 0 then
+        log.info("Parser installation complete")
+      else
+        table.sort(failed)
+        log.warn("Failed: " .. table.concat(failed, ", "))
+      end
+      vim.schedule(function()
+        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+          if vim.api.nvim_buf_is_loaded(buf) then
+            local blang = detect_lang(buf)
+            if blang then
+              parser_loaded(blang)
+              enable(buf)
             end
-          end)
+          end
         end
-      end, { silent = true })
-    end
+      end)
+    end, { silent = true })
   end
 
   batch_install()

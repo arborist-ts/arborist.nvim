@@ -6,6 +6,15 @@ local config = require("arborist.config")
 
 local M = {}
 
+--- Truncate and clean command output for inclusion in error messages.
+--- @param r vim.SystemCompleted
+--- @return string
+local function cmd_output(r)
+  local out = vim.trim((r.stderr or "") .. (r.stdout or ""))
+  if #out > 200 then out = out:sub(1, 200) .. "..." end
+  return out
+end
+
 --- Recursively remove a directory. Safe from any thread (pure Lua + uv).
 --- @param path string
 local function rm_rf(path)
@@ -59,16 +68,17 @@ function M.clone_repo(info, cache_dir, callback)
   local name = url:match("([^/]+)$")
   local dest = cache_dir .. "/" .. name
 
-  -- Already cloned?
-  if valid_clone(dest) then
-    callback(nil, dest)
+  -- Dedup: queue behind in-flight clone of same URL. Must check BEFORE
+  -- valid_clone — git creates .git early in the clone, so valid_clone can
+  -- return true for an incomplete clone that's still downloading files.
+  if cloning[url] then
+    cloning[url][#cloning[url] + 1] = callback
     return
   end
 
-  -- Dedup: queue behind in-flight clone of same URL (must check BEFORE rm_rf
-  -- to avoid nuking another caller's in-progress clone of the same repo)
-  if cloning[url] then
-    cloning[url][#cloning[url] + 1] = callback
+  -- Already cloned?
+  if valid_clone(dest) then
+    callback(nil, dest)
     return
   end
 
@@ -91,7 +101,7 @@ function M.clone_repo(info, cache_dir, callback)
         elseif on_fail then
           on_fail()
         else
-          finish("clone failed: " .. clone_url)
+          finish("clone failed: " .. clone_url .. "\n" .. cmd_output(r))
         end
       end
     )
@@ -112,21 +122,6 @@ function M.clone_repo(info, cache_dir, callback)
   end
 end
 
---- Download pre-built WASM parser from CDN.
---- @param lang string
---- @param dest string Output .wasm path
---- @param callback fun(err: string?)
-function M.download_wasm(lang, dest, callback)
-  local url = string.format(config.values.wasm_url, lang)
-  vim.system({ "curl", "-fsSL", "-o", dest, url }, {}, function(r)
-    if r.code == 0 and valid_file(dest) then
-      callback(nil)
-    else
-      pcall(os.remove, dest)
-      callback("WASM CDN download failed for " .. lang)
-    end
-  end)
-end
 
 --- Resolve the grammar root directory.
 --- @return string? base  nil if location subdirectory doesn't exist
@@ -149,7 +144,7 @@ function M.build_wasm(repo_path, info, dest, callback)
       callback(nil)
     else
       pcall(os.remove, dest)
-      callback("WASM build failed for " .. base)
+      callback("WASM build failed for " .. base .. "\n" .. cmd_output(r))
     end
   end)
 end
@@ -196,7 +191,7 @@ function M.build_native(repo_path, info, dest, callback)
             callback(nil)
           else
             pcall(os.remove, dest)
-            callback("cc compile failed for " .. base)
+            callback("cc compile failed for " .. base .. "\n" .. cmd_output(r2))
           end
         end)
       end)
@@ -210,7 +205,7 @@ function M.build_native(repo_path, info, dest, callback)
   else
     vim.system({ "tree-sitter", "generate" }, { cwd = base }, function(r)
       if r.code ~= 0 then
-        callback("tree-sitter generate failed for " .. base)
+        callback("tree-sitter generate failed for " .. base .. "\n" .. cmd_output(r))
         return
       end
       do_build()

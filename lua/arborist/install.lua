@@ -1,9 +1,12 @@
---- Install orchestrator: 4-tier fallback chain per parser.
----   1. WASM CDN download
----   2. Clone + tree-sitter build --wasm
----   3. Clone + tree-sitter build (native) or cc
+--- Install orchestrator: clone repos, build parsers with fallback chain.
+---   1. tree-sitter build --wasm  (if prefer_wasm and wasm supported)
+---   2. tree-sitter build         (native .so)
+---   3. cc compile                (fallback if tree-sitter CLI unavailable)
 ---   4. Fail
---- Tiers 1-2 are skipped once wasm_supported is known false.
+---
+--- Batch installs group parsers by repo URL so each repo is cloned once.
+--- Parsers sharing a repo (e.g. typescript + tsx) build sequentially from
+--- the same clone.
 
 local config = require("arborist.config")
 local compile = require("arborist.compile")
@@ -13,8 +16,6 @@ local registry = require("arborist.registry")
 
 local M = {}
 
-local active = {} --- @type table<string, boolean> In-flight installs
-local waiting = {} --- @type table<string, fun(err: string?)[]> Callbacks queued behind active installs
 local ignore = {} --- @type table<string, boolean> Filetypes to never attempt
 
 --- @type boolean? nil = unknown (not yet tested), true/false = tested
@@ -30,10 +31,6 @@ function M.init(dirs)
   parser_dir = dirs.parser
   query_dir = dirs.query
   repo_cache = dirs.repo_cache
-  -- WASM support is detected lazily on the first install attempt.
-  -- A file-based probe cannot distinguish wasm-enabled from non-wasm Neovim
-  -- builds (both produce the same generic error), so we defer detection to
-  -- the first real parser load and verify it actually works.
 end
 
 --- Mark filetypes to ignore. Merges with existing.
@@ -42,163 +39,153 @@ function M.set_ignore(list)
   for _, ft in ipairs(list) do ignore[ft] = true end
 end
 
---- Should this lang be skipped by the auto-detect autocmd?
+--- Should this lang be skipped?
 --- @param lang string
 --- @return boolean
 function M.should_skip(lang)
-  return ignore[lang] or active[lang] or false
+  return ignore[lang] or false
 end
 
---- Build a native .so from cloned source (via vim.schedule for main-thread safety).
---- @param repo string
+--- Build a single parser from a cloned repo. Tries WASM first, then native.
+--- @param repo_path string  Cloned repo on disk
 --- @param lang string
 --- @param info arborist.ParserInfo
+--- @param opts {silent?: boolean}
 --- @param callback fun(err: string?)
-local function try_native(repo, lang, info, callback)
-  vim.schedule(function()
-    compile.build_native(repo, info, parser_dir .. "/" .. lang .. ".so", function(err)
-      vim.schedule(function() callback(err) end)
-    end)
-  end)
-end
-
---- Install a single parser. Safe to call concurrently for the same lang —
---- duplicate callers are queued and notified when the install finishes.
---- @param lang string
---- @param callback? fun(err: string?)
---- @param opts? {silent?: boolean}
-function M.install(lang, callback, opts)
-  opts = opts or {}
-  callback = callback or function() end
-
-  -- Queue behind in-flight install of same lang
-  if active[lang] then
-    waiting[lang] = waiting[lang] or {}
-    waiting[lang][#waiting[lang] + 1] = callback
-    return
-  end
-  active[lang] = true
-
+local function build_parser(repo_path, lang, info, opts, callback)
   -- Clean old artifacts
   pcall(os.remove, parser_dir .. "/" .. lang .. ".so")
   pcall(os.remove, parser_dir .. "/" .. lang .. ".wasm")
 
-  if not opts.silent then log.info("Installing " .. lang .. "...") end
+  -- Copy parser-repo queries
+  vim.schedule(function()
+    compile.copy_queries(repo_path, lang, info, query_dir)
+  end)
 
-  local info = registry.resolve(lang)
-  local try_wasm = config.values.prefer_wasm and M.wasm_supported ~= false
-
-  local repo --- @type string?  Cloned repo path (set by clone operation)
-  local wasm_cdn_ok = false --- Did CDN download succeed?
-  local remaining = try_wasm and 2 or 1 --- Parallel ops to wait for
-
-  -- Notify all callers (original + queued) and clean up state.
   local function finish(err, mode)
-    active[lang] = nil
     if err and opts.silent then
       ignore[lang] = true
     end
     if mode then
       lock.record(lang, mode)
-      if not opts.silent then log.info("Installed: " .. lang .. " (" .. mode .. ")") end
-    elseif not opts.silent then
-      log.warn(err or "unknown error installing " .. lang)
     end
     callback(err)
-    local queued = waiting[lang]
-    waiting[lang] = nil
-    if queued then
-      for _, cb in ipairs(queued) do cb(err) end
-    end
   end
 
-  -- Try building from cloned repo: WASM first, then native.
-  local function build_from_repo()
-    if not repo then
-      finish("no parser source found for " .. lang)
-      return
-    end
-    -- Copy parser-repo queries (enhanced queries come from the queries pack)
+  local function try_native()
     vim.schedule(function()
-      compile.copy_queries(repo, lang, info, query_dir)
+      compile.build_native(repo_path, info, parser_dir .. "/" .. lang .. ".so", function(err)
+        vim.schedule(function()
+          finish(err, err and nil or "native")
+        end)
+      end)
     end)
-
-    if try_wasm and M.wasm_supported ~= false then
-      local wasm_path = parser_dir .. "/" .. lang .. ".wasm"
-      compile.build_wasm(repo, info, wasm_path, function(werr)
-        if not werr then
-          vim.schedule(function()
-            local lok, _, lerr = pcall(vim.treesitter.language.add, lang, { path = wasm_path })
-            if lok and lerr == nil then
-              M.wasm_supported = true
-              finish(nil, "wasm-built")
-            else
-              pcall(os.remove, wasm_path)
-              if M.wasm_supported == nil then
-                M.wasm_supported = false
-                log.info("WASM parsers not supported by this Neovim build, using native compilation")
-              end
-              try_native(repo, lang, info, function(nerr)
-                finish(nerr, nerr and nil or "native")
-              end)
-            end
-          end)
-        else
-          try_native(repo, lang, info, function(nerr)
-            finish(nerr, nerr and nil or "native")
-          end)
-        end
-      end)
-    else
-      try_native(repo, lang, info, function(nerr)
-        finish(nerr, nerr and nil or "native")
-      end)
-    end
   end
 
-  -- Both parallel ops done — decide which path to take.
-  local function check_done()
-    remaining = remaining - 1
-    if remaining > 0 then return end
-
-    if try_wasm and wasm_cdn_ok and M.wasm_supported ~= false then
-      vim.schedule(function()
-        if repo then compile.copy_queries(repo, lang, info, query_dir) end
-        local wasm_path = parser_dir .. "/" .. lang .. ".wasm"
-        local lok, _, lerr = pcall(vim.treesitter.language.add, lang, { path = wasm_path })
-        if lok and lerr == nil then
-          M.wasm_supported = true
-          finish(nil, "wasm-cdn")
-        else
-          -- CDN wasm format may be incompatible even when Neovim supports wasm.
-          -- Don't disable wasm — fall back to building from source instead.
-          pcall(os.remove, wasm_path)
-          build_from_repo()
-        end
-      end)
-    else
-      -- Clean up any CDN wasm left on disk (concurrent install may have
-      -- set wasm_supported=false while our download was in-flight).
-      if wasm_cdn_ok then
-        pcall(os.remove, parser_dir .. "/" .. lang .. ".wasm")
-      end
-      build_from_repo()
-    end
-  end
-
-  -- Operation 1: Clone repo
-  compile.clone_repo(info, repo_cache, function(err, path)
-    if not err then repo = path end
-    check_done()
-  end)
-
-  -- Operation 2: WASM CDN download (parallel with clone)
+  local try_wasm = config.values.prefer_wasm and M.wasm_supported ~= false
   if try_wasm then
-    compile.download_wasm(lang, parser_dir .. "/" .. lang .. ".wasm", function(err)
-      wasm_cdn_ok = not err
-      check_done()
+    local wasm_path = parser_dir .. "/" .. lang .. ".wasm"
+    compile.build_wasm(repo_path, info, wasm_path, function(werr)
+      if not werr then
+        vim.schedule(function()
+          local lok, _, lerr = pcall(vim.treesitter.language.add, lang, { path = wasm_path })
+          if lok and lerr == nil then
+            M.wasm_supported = true
+            finish(nil, "wasm-built")
+          else
+            pcall(os.remove, wasm_path)
+            if M.wasm_supported == nil then
+              M.wasm_supported = false
+              log.info("WASM parsers not supported by this Neovim build, using native compilation")
+            end
+            try_native()
+          end
+        end)
+      else
+        try_native()
+      end
+    end)
+  else
+    try_native()
+  end
+end
+
+--- Install multiple parsers. Groups by repo URL — each repo is cloned once,
+--- then parsers sharing that repo are built sequentially from the same clone.
+--- Repo groups run in parallel.
+--- @param langs string[]
+--- @param callback fun(results: table<string, string?>) lang → error or nil
+--- @param opts? {silent?: boolean}
+function M.install_batch(langs, callback, opts)
+  opts = opts or {}
+
+  -- Resolve all parsers and group by repo URL
+  --- @type table<string, {lang: string, info: arborist.ParserInfo}[]>
+  local groups = {}
+  local group_order = {} --- @type string[]  preserve first-seen order
+  for _, lang in ipairs(langs) do
+    local info = registry.resolve(lang)
+    local url = info.url
+    if not groups[url] then
+      groups[url] = {}
+      group_order[#group_order + 1] = url
+    end
+    groups[url][#groups[url] + 1] = { lang = lang, info = info }
+  end
+
+  local results = {} --- @type table<string, string?>
+  local groups_remaining = #group_order
+
+  if groups_remaining == 0 then
+    callback(results)
+    return
+  end
+
+  local function group_done()
+    groups_remaining = groups_remaining - 1
+    if groups_remaining == 0 then
+      callback(results)
+    end
+  end
+
+  -- Clone each unique repo in parallel, then build parsers sequentially.
+  for _, url in ipairs(group_order) do
+    local parsers = groups[url]
+
+    compile.clone_repo(parsers[1].info, repo_cache, function(err, path)
+      if err then
+        for _, p in ipairs(parsers) do results[p.lang] = err end
+        group_done()
+        return
+      end
+
+      -- Build parsers for this repo one at a time
+      local function build_next(i)
+        if i > #parsers then
+          group_done()
+          return
+        end
+        local p = parsers[i]
+        build_parser(path, p.lang, p.info, opts, function(build_err)
+          results[p.lang] = build_err
+          build_next(i + 1)
+        end)
+      end
+
+      build_next(1)
     end)
   end
+end
+
+--- Install a single parser (convenience wrapper around install_batch).
+--- @param lang string
+--- @param callback? fun(err: string?)
+--- @param opts? {silent?: boolean}
+function M.install(lang, callback, opts)
+  callback = callback or function() end
+  M.install_batch({ lang }, function(results)
+    callback(results[lang])
+  end, opts)
 end
 
 return M
