@@ -84,7 +84,8 @@ User queries in `~/.config/nvim/queries/` always take highest priority.
 | `:Arborist` | Show installed parsers and status |
 | `:ArboristInstall {lang}` | Install a parser manually |
 | `:ArboristUpdate` | Check all parsers for updates |
-| `:ArboristClean` | Remove all arborist-managed parsers and cache |
+| `:ArboristClean` | Remove all arborist-managed parsers |
+| `:checkhealth arborist` | Verify setup, tools, and bundled data |
 
 ## Requirements
 

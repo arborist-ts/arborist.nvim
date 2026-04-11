@@ -11,9 +11,10 @@ CONTENTS                                                   *arborist-contents*
   3. Options .............................................. |arborist-options|
   4. Commands ............................................. |arborist-commands|
   5. Lua API .............................................. |arborist-api|
-  6. How it works ......................................... |arborist-how-it-works|
-  7. Data sources ......................................... |arborist-data-sources|
-  8. Requirements ......................................... |arborist-requirements|
+  6. Health check ......................................... |arborist-health|
+  7. How it works ......................................... |arborist-how-it-works|
+  8. Data sources ......................................... |arborist-data-sources|
+  9. Requirements ......................................... |arborist-requirements|
 
 ==============================================================================
 1. INTRODUCTION                                                    *arborist*
@@ -177,7 +178,18 @@ arborist.status()
     Print installed parser status. Equivalent to |:Arborist|.
 
 ==============================================================================
-6. HOW IT WORKS                                       *arborist-how-it-works*
+6. HEALTH CHECK                                            *arborist-health*
+
+Run `:checkhealth arborist` to verify your setup. The health check reports:
+
+  - Neovim version (0.12+ required)
+  - WASM support (wasmtime)
+  - External tools: `git`, `curl`, `tree-sitter` CLI, C compiler
+  - Bundled registry and query data integrity
+  - Number of installed parsers
+
+==============================================================================
+7. HOW IT WORKS                                       *arborist-how-it-works*
 
 Install chain ~
 
@@ -215,7 +227,7 @@ filetype maps to a language without an installed parser, installation starts
 automatically in the background.
 
 ==============================================================================
-7. DATA SOURCES                                       *arborist-data-sources*
+8. DATA SOURCES                                       *arborist-data-sources*
 
 Arborist bundles data from two companion repositories:
 
@@ -233,7 +245,7 @@ This keeps the upstream repos canonical and arborist.nvim releases
 self-contained.
 
 ==============================================================================
-8. REQUIREMENTS                                       *arborist-requirements*
+9. REQUIREMENTS                                       *arborist-requirements*
 
   - Neovim 0.12+
   - `git` (for cloning parser source repos)
