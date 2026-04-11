@@ -17,8 +17,8 @@ local active = {} --- @type table<string, boolean> In-flight installs
 local waiting = {} --- @type table<string, fun(err: string?)[]> Callbacks queued behind active installs
 local ignore = {} --- @type table<string, boolean> Filetypes to never attempt
 
---- @type boolean
-M.wasm_supported = false
+--- @type boolean? nil = unknown (not yet tested), true/false = tested
+M.wasm_supported = nil
 
 --- Paths (set by init)
 local parser_dir --- @type string
@@ -30,21 +30,10 @@ function M.init(dirs)
   parser_dir = dirs.parser
   query_dir = dirs.query
   repo_cache = dirs.repo_cache
-  -- Detect WASM support: write minimal .wasm, try to load it.
-  -- Instant, synchronous, runs once at startup. No network, no delay.
-  M.wasm_supported = (function()
-    local tmp = os.tmpname() .. ".wasm"
-    local f = io.open(tmp, "wb")
-    if not f then return false end
-    f:write("\0asm\1\0\0\0") -- minimal valid WASM header
-    f:close()
-    -- If Neovim has wasmtime, this fails with "invalid module" (WASM IS available).
-    -- If Neovim lacks wasmtime, this fails with "wasm not supported" (WASM NOT available).
-    local _, err = vim.treesitter.language.add("_arborist_probe", { path = tmp })
-    os.remove(tmp)
-    local msg = tostring(err or ""):lower()
-    return not (msg:find("wasm") and msg:find("not"))
-  end)()
+  -- WASM support is detected lazily on the first install attempt.
+  -- A file-based probe cannot distinguish wasm-enabled from non-wasm Neovim
+  -- builds (both produce the same generic error), so we defer detection to
+  -- the first real parser load and verify it actually works.
 end
 
 --- Mark filetypes to ignore. Merges with existing.
