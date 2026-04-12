@@ -18,22 +18,19 @@ end
 --- Recursively remove a directory. Safe from any thread (pure Lua + uv).
 --- @param path string
 local function rm_rf(path)
-  local stat = vim.uv.fs_stat(path)
-  if not stat then return end
-  if stat.type == "directory" then
-    local handle = vim.uv.fs_scandir(path)
-    if handle then
-      while true do
-        local name, t = vim.uv.fs_scandir_next(handle)
-        if not name then break end
-        local child = path .. "/" .. name
-        if t == "directory" then rm_rf(child) else vim.uv.fs_unlink(child) end
-      end
+  local s = vim.uv.fs_stat(path)
+  if not s then return end
+  if s.type ~= "directory" then return vim.uv.fs_unlink(path) end
+  local h = vim.uv.fs_scandir(path)
+  if h then
+    while true do
+      local name, t = vim.uv.fs_scandir_next(h)
+      if not name then break end
+      local child = path .. "/" .. name
+      if t == "directory" then rm_rf(child) else vim.uv.fs_unlink(child) end
     end
-    vim.uv.fs_rmdir(path)
-  else
-    vim.uv.fs_unlink(path)
   end
+  vim.uv.fs_rmdir(path)
 end
 
 --- Check that a directory contains a valid git clone.
@@ -122,7 +119,6 @@ function M.clone_repo(info, cache_dir, callback)
   end
 end
 
-
 --- Resolve the grammar root directory.
 --- @return string? base  nil if location subdirectory doesn't exist
 local function resolve_base(repo_path, info)
@@ -171,14 +167,11 @@ function M.build_native(repo_path, info, dest, callback)
       vim.schedule(function()
         local src = base .. "/src"
         if vim.fn.filereadable(src .. "/parser.c") == 0 then
-          callback("build failed for " .. base)
-          return
+          callback("build failed for " .. base); return
         end
-        local sources = { src .. "/parser.c" }
-        local link_cpp = false
+        local sources, link_cpp = { src .. "/parser.c" }, false
         if vim.fn.filereadable(src .. "/scanner.cc") == 1 then
-          sources[#sources + 1] = src .. "/scanner.cc"
-          link_cpp = true
+          sources[#sources + 1] = src .. "/scanner.cc"; link_cpp = true
         elseif vim.fn.filereadable(src .. "/scanner.c") == 1 then
           sources[#sources + 1] = src .. "/scanner.c"
         end
@@ -187,28 +180,20 @@ function M.build_native(repo_path, info, dest, callback)
         if link_cpp then cmd[#cmd + 1] = "-lstdc++" end
         vim.list_extend(cmd, { "-o", dest })
         vim.system(cmd, {}, function(r2)
-          if r2.code == 0 then
-            callback(nil)
-          else
-            pcall(os.remove, dest)
-            callback("cc compile failed for " .. base .. "\n" .. cmd_output(r2))
-          end
+          if r2.code ~= 0 then pcall(os.remove, dest) end
+          callback(r2.code ~= 0 and "cc compile failed for " .. base .. "\n" .. cmd_output(r2) or nil)
         end)
       end)
     end)
   end
 
   -- Generate parser.c if missing (some grammars only ship grammar.js)
-  local stat = vim.uv.fs_stat(base .. "/src/parser.c")
-  if stat then
+  if vim.uv.fs_stat(base .. "/src/parser.c") then
     do_build()
   else
     vim.system({ "tree-sitter", "generate" }, { cwd = base }, function(r)
-      if r.code ~= 0 then
-        callback("tree-sitter generate failed for " .. base .. "\n" .. cmd_output(r))
-        return
-      end
-      do_build()
+      if r.code ~= 0 then callback("tree-sitter generate failed for " .. base .. "\n" .. cmd_output(r))
+      else do_build() end
     end)
   end
 end
@@ -228,14 +213,7 @@ function M.copy_queries(repo_path, lang, info, query_dir)
   vim.fn.mkdir(dest, "p")
 
   for _, path in ipairs(vim.fn.glob(src .. "/*.scm", false, true)) do
-    local name = vim.fn.fnamemodify(path, ":t")
-    local inp = io.open(path, "r")
-    if inp then
-      local data = inp:read("*a")
-      inp:close()
-      local out = io.open(dest .. "/" .. name, "w")
-      if out then out:write(data); out:close() end
-    end
+    vim.uv.fs_copyfile(path, dest .. "/" .. vim.fn.fnamemodify(path, ":t"))
   end
 end
 
