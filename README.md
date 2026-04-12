@@ -25,15 +25,15 @@ require("arborist").setup({
 
 All options and their defaults:
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `prefer_wasm` | `true` | Try WASM before native compilation |
-| `update_cadence` | `"daily"` | `"daily"`, `"weekly"`, or `"manual"` |
-| `compiler` | `"cc"` | C compiler for native .so builds |
-| `install_popular` | `true` | Install popular language parsers at startup |
-| `ensure_installed` | `{}` | Additional parsers to install eagerly at startup |
-| `ignore` | `{}` | Extra filetypes to skip (merged with registry defaults) |
-| `overrides` | `{}` | Extra parsers not in the registry |
+| Option             | Default   | Description                                             |
+| ------------------ | --------- | ------------------------------------------------------- |
+| `prefer_wasm`      | `true`    | Try WASM before native compilation                      |
+| `update_cadence`   | `"daily"` | `"daily"`, `"weekly"`, or `"manual"`                    |
+| `compiler`         | `"cc"`    | C compiler for native .so builds                        |
+| `install_popular`  | `true`    | Install popular language parsers at startup             |
+| `ensure_installed` | `{}`      | Additional parsers to install eagerly at startup        |
+| `ignore`           | `{}`      | Extra filetypes to skip (merged with registry defaults) |
+| `overrides`        | `{}`      | Extra parsers not in the registry                       |
 
 ## Parsers and Queries
 
@@ -84,10 +84,10 @@ User queries in `~/.config/nvim/queries/` always take highest priority.
 Arborist bundles data from two companion repos so it works offline and
 ships cohesive versions:
 
-| Data | Source | Bundled in |
-|------|--------|------------|
+| Data                          | Source                                                          | Bundled in  |
+| ----------------------------- | --------------------------------------------------------------- | ----------- |
 | Parser registry (327 parsers) | [arborist-ts/registry](https://github.com/arborist-ts/registry) | `registry/` |
-| Query files (330 languages) | [arborist-ts/queries](https://github.com/arborist-ts/queries) | `queries/` |
+| Query files (330 languages)   | [arborist-ts/queries](https://github.com/arborist-ts/queries)   | `queries/`  |
 
 Changes flow **upstream first**: updates are made in the source repos,
 then synced into arborist.nvim before each release via
@@ -96,13 +96,13 @@ arborist.nvim releases self-contained.
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `:Arborist` | Show installed parsers and status |
-| `:ArboristInstall {lang}` | Install a parser manually |
-| `:ArboristUpdate` | Check all parsers for updates |
-| `:ArboristClean` | Remove all arborist-managed parsers |
-| `:checkhealth arborist` | Verify setup, tools, and bundled data |
+| Command                   | Description                           |
+| ------------------------- | ------------------------------------- |
+| `:Arborist`               | Show installed parsers and status     |
+| `:ArboristInstall {lang}` | Install a parser manually             |
+| `:ArboristUpdate`         | Check all parsers for updates         |
+| `:ArboristClean`          | Remove all arborist-managed parsers   |
+| `:checkhealth arborist`   | Verify setup, tools, and bundled data |
 
 ## Requirements
 

@@ -38,6 +38,12 @@ function M.setup(opts)
 
   config.setup(opts)
 
+  -- Prepend the plugin's own dir to runtimepath so its bundled, curated
+  -- queries win over any stragglers users may have in site/queries (e.g.
+  -- leftovers from a prior nvim-treesitter install).
+  local plugin_root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h:h")
+  vim.opt.runtimepath:prepend(plugin_root)
+
   -- Register custom query predicates/directives before any query loading.
   require("arborist.predicates").register()
 
