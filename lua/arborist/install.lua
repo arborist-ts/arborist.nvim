@@ -63,12 +63,8 @@ local function build_parser(repo_path, lang, info, opts, callback)
   end)
 
   local function finish(err, mode)
-    if err and opts.silent then
-      ignore[lang] = true
-    end
-    if mode then
-      lock.record(lang, mode)
-    end
+    if err and opts.silent then ignore[lang] = true end
+    if mode then lock.record(lang, mode) end
     callback(err)
   end
 
@@ -136,16 +132,11 @@ function M.install_batch(langs, callback, opts)
   local results = {} --- @type table<string, string?>
   local groups_remaining = #group_order
 
-  if groups_remaining == 0 then
-    callback(results)
-    return
-  end
+  if groups_remaining == 0 then callback(results); return end
 
   local function group_done()
     groups_remaining = groups_remaining - 1
-    if groups_remaining == 0 then
-      callback(results)
-    end
+    if groups_remaining == 0 then callback(results) end
   end
 
   -- Clone each unique repo in parallel, then build parsers sequentially.
