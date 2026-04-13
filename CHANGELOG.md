@@ -2,6 +2,67 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.6.0 — 2026-04-13
+
+Architecture release. Parser pins separate from editor-neutral metadata.
+arborist-ts/registry becomes a clean facts-only database that any tool can
+consume; nvim-specific revision decisions move into arborist.nvim itself.
+Bundled data refreshed from nvim-treesitter `main` snapshot (the original
+project was archived 2026-04-03; main is its frozen final state).
+
+### Added
+- **`registry/pins.toml`** — nvim-specific parser revision pins, separated
+  from the editor-neutral `registry/parsers.toml`. Each pin selects a SHA
+  whose grammar is compatible with arborist's bundled queries and the
+  current tree-sitter ABI. Entries marked `override = true` survive
+  `scripts/sync-pins.lua` runs.
+- **`scripts/sync-pins.lua`** — maintainer tooling. Reads nvim-treesitter
+  main's `lua/nvim-treesitter/parsers.lua`, extracts revisions, merges
+  with local overrides. Idempotent. Reports added/updated/unchanged/
+  override-preserved counts.
+- **Bundled `registry/parsers.toml` now ships richer metadata** — beyond
+  `url` and `location`, captures `maintainers` (GitHub handles), `requires`
+  (parser dependencies), `readme_note` (human-readable gotchas), `branch`
+  (non-default git branch, rare), and `generate` (whether the grammar
+  needs `tree-sitter generate` before build). All editor-neutral facts.
+  arborist's runtime reads what it consumes (`url`, `location`, `revision`
+  via `pins.toml`) and treats the rest as data-product metadata for
+  contributors and human consumers.
+
+### Changed
+- **Bundled parser registry refreshed from nvim-treesitter `main`
+  snapshot.** master/lockfile.json is no longer the source. ~14 newly-pinned
+  arborist-only parsers added; some pins shifted to align with main's
+  versions.
+- **Python pin held at `710796b8…`** (`override = true`) — main pins
+  v0.25.0 but the bundled `python/indents.scm` has the broken
+  `(ERROR (block (expression_statement (identifier) @_except)
+  @indent.branch))` pattern that doesn't compile against v0.25. The
+  override preserves query compatibility.
+- **`registry.lua` TOML reader** extended to handle string arrays
+  (`maintainers`, `requires`) and booleans (`generate`). `resolve(lang)`
+  merges descriptive fields from `parsers.toml` with the revision from
+  `pins.toml`.
+
+### Removed
+- **`scripts/sync-upstream-revisions.lua`** (242 lines) — superseded by
+  `scripts/sync-pins.lua` (nvim-specific) plus the editor-neutral
+  `arborist-ts/registry/scripts/sync.lua` (descriptive fields only). The
+  master/lockfile.json source no longer exists upstream.
+
+### Notes
+- nvim-treesitter is archived. Bundled data is the April 2026 frozen
+  snapshot. A community fork at `neovim-treesitter/nvim-treesitter` exists
+  but isn't yet mature enough to track (single-maintainer, broken CI,
+  distributed-query model). Revisit in ~90 days.
+- main dropped two filetype mappings during its rewrite: `bash → ["sh"]`
+  (was `["sh", "zsh"]`) and `latex → ["tex"]` (was `["plaintex", "tex"]`).
+  arborist's `latex = ["plaintex", "tex"]` is restored locally so
+  `.plaintex` files still get the latex parser. The `bash → zsh` mapping
+  is intentionally NOT restored because arborist ships its own dedicated
+  `[zsh]` parser. The registry's sync script now preserves manual
+  filetype mappings across runs.
+
 ## 0.5.0 — 2026-04-13
 
 Resilience release. Arborist now survives malformed queries, parser-version

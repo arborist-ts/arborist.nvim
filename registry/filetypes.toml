@@ -1,16 +1,15 @@
-# Neovim Filetype → Parser Mappings
+# Neovim Filetype Mappings
 #
-# Maps Neovim filetype names to tree-sitter parser names.
-# Only needed when the filetype differs from the parser name.
-# For example, Neovim's 'sh' filetype uses the 'bash' parser.
+# Maps Neovim filetype names to tree-sitter parser names,
+# for cases where they differ (e.g. sh → bash, tex → latex).
 #
-# Format: parser_name = ["filetype1", "filetype2", ...]
+# Format: parser = ["filetype1", "filetype2"]
 #
-# Initially seeded from nvim-treesitter (Apache-2.0). Now maintained independently.
+# 2026-04-13 | 62 mappings | synced from nvim-treesitter main
 
 [filetypes]
 angular = ["htmlangular"]
-bash = ["sh", "zsh"]
+bash = ["sh"]
 bibtex = ["bib"]
 c_sharp = ["cs", "csharp"]
 commonlisp = ["lisp"]

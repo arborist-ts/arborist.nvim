@@ -265,30 +265,42 @@ buffers.
 ==============================================================================
 8. DATA SOURCES                                       *arborist-data-sources*
 
-Arborist bundles data from two companion repositories:
+Arborist bundles data from two companion repositories plus its own pin set:
 
-  Registry (327 parsers):
+  Registry — descriptive parser metadata (editor-neutral):
     Source: https://github.com/arborist-ts/registry
-    Bundled in: `registry/`
+    Bundled in: `registry/parsers.toml`
+    Contents: url, location, branch, generate, maintainers, requires,
+              readme_note. NO revision pins (those are nvim-specific).
 
-  Queries (330 languages):
+  Queries — `.scm` files for highlights, indents, folds, etc.:
     Source: https://github.com/arborist-ts/queries
     Bundled in: `queries/`
 
-Changes flow upstream first: updates are made in the source repos, then
-synced into arborist.nvim before each release via `scripts/sync-upstream.sh`.
-This keeps the upstream repos canonical and arborist.nvim releases
-self-contained.
+  Pins — nvim-specific parser revision pins:
+    Maintained in: `registry/pins.toml` (this repo)
+    Contents: revision (commit SHA or semver tag) per language. Marker
+              `override = true` indicates a manual decision that survives
+              `scripts/sync-pins.lua` runs.
 
-Parser revisions are separately synced from nvim-treesitter's `lockfile.json`
-via `scripts/sync-upstream-revisions.lua` so arborist's bundled registry
-tracks the same community-vetted pins used by nvim-treesitter users. Run:
+Changes to the editor-neutral registry and queries flow upstream first:
+updates are made in the source repos, then synced into arborist.nvim before
+each release via `scripts/sync-upstream.sh`.
+
+Pins are nvim-specific: they encode which grammar revision is compatible
+with arborist's bundled queries and the current tree-sitter ABI. Maintainers
+refresh pins via `scripts/sync-pins.lua`, which reads nvim-treesitter
+`main`'s `parsers.lua` and merges with local overrides:
 >sh
-    nvim --headless --clean \
-      -c "luafile scripts/sync-upstream-revisions.lua" -c "qa!"
+    nvim --headless --clean -c "luafile scripts/sync-pins.lua" -c "qa!"
 <
-The script is idempotent and prints a summary report of added/updated/
-unchanged pins and arborist-only / lockfile-only language differences.
+The script is idempotent and prints a summary report of added / updated /
+unchanged / override-preserved counts.
+
+The architectural split exists because pins encode editor- and query-set-
+specific compatibility decisions, while the descriptive registry is a
+shared-infrastructure data product that any tree-sitter consumer (Helix,
+Kakoune, future tools) can reuse.
 
 ==============================================================================
 9. REQUIREMENTS                                       *arborist-requirements*
