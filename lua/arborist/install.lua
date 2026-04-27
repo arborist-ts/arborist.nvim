@@ -199,21 +199,30 @@ function M.install_batch(langs, callback, opts)
     if groups_remaining == 0 then callback(results) end
   end
 
-  -- Clone each unique repo in parallel, then build parsers sequentially.
-  for _, url in ipairs(group_order) do
+  -- Clone each unique repo, then build parsers sequentially within each repo.
+  -- Concurrency limits how many repos are processed in parallel.
+  local max_concurrent = config.values.concurrency or math.huge
+  local active_count = 0
+  local pending_urls = {} --- @type string[]
+
+  local function start_group(url)
+    active_count = active_count + 1
     local parsers = groups[url]
 
     compile.clone_repo(parsers[1].info, repo_cache, function(err, path)
       if err then
         for _, p in ipairs(parsers) do results[p.lang] = err end
+        active_count = active_count - 1
         group_done()
+        if #pending_urls > 0 then start_group(table.remove(pending_urls, 1)) end
         return
       end
 
-      -- Build parsers for this repo one at a time
       local function build_next(i)
         if i > #parsers then
+          active_count = active_count - 1
           group_done()
+          if #pending_urls > 0 then start_group(table.remove(pending_urls, 1)) end
           return
         end
         local p = parsers[i]
@@ -227,6 +236,14 @@ function M.install_batch(langs, callback, opts)
     end, function(git_pid)
       for _, p in ipairs(parsers) do update_lock_pid(p.lang, git_pid) end
     end)
+  end
+
+  for _, url in ipairs(group_order) do
+    if active_count < max_concurrent then
+      start_group(url)
+    else
+      pending_urls[#pending_urls + 1] = url
+    end
   end
 end
 

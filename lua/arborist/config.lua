@@ -8,6 +8,7 @@
 --- @field ensure_installed string[] Additional parsers to install eagerly at startup
 --- @field ignore string[] Extra filetypes to ignore (merged with registry defaults)
 --- @field overrides table<string, {url: string, location?: string}> Extra parser overrides
+--- @field concurrency integer? Max parallel repo installs (nil = unlimited)
 
 --- @type arborist.Config
 local defaults = {
@@ -22,6 +23,9 @@ local defaults = {
   ensure_installed = {},
   ignore = {},
   overrides = {},
+  -- Maximum number of repos to clone/build in parallel. nil means unlimited.
+  -- Set to 1 to install one at a time (useful on metered connections).
+  concurrency = nil,
 }
 
 local valid_cadence = { daily = true, weekly = true, manual = true }
