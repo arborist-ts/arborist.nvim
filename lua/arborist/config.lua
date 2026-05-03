@@ -1,5 +1,9 @@
 --- Configuration defaults and merge.
 
+--- @class arborist.DisableConfig
+--- @field highlight? string[] Langs to skip vim.treesitter.start on (no TS highlighting)
+--- @field indent? string[] Langs to skip indentexpr setup on (uses Vim default)
+
 --- @class arborist.Config
 --- @field prefer_wasm boolean Try WASM before native compilation
 --- @field update_cadence "daily"|"weekly"|"manual" Auto-update frequency
@@ -8,6 +12,7 @@
 --- @field ensure_installed string[] Additional parsers to install eagerly at startup
 --- @field ignore string[] Extra filetypes to ignore (merged with registry defaults)
 --- @field overrides table<string, {url: string, location?: string}> Extra parser overrides
+--- @field disable arborist.DisableConfig Per-feature, per-lang opt-out
 
 --- @type arborist.Config
 local defaults = {
@@ -22,6 +27,11 @@ local defaults = {
   ensure_installed = {},
   ignore = {},
   overrides = {},
+  -- Per-lang opt-out for tree-sitter features. Useful when a parser's
+  -- highlights/indents misbehave for a given filetype (e.g. markdown indent,
+  -- csv highlighting on huge files). Buffer-local overrides remain available
+  -- via after/ftplugin/<ft>.lua.
+  disable = { highlight = {}, indent = {} },
 }
 
 local valid_cadence = { daily = true, weekly = true, manual = true }

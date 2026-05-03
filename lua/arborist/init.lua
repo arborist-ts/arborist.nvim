@@ -24,9 +24,12 @@ local function enable(buf)
   -- corrupts the terminal and (previously) cascaded query crashes into
   -- debugger launch failure.
   if vim.bo[buf].buftype ~= "" then return end
-  pcall(vim.treesitter.start, buf)
   local lang = vim.treesitter.language.get_lang(vim.bo[buf].filetype)
-  if lang then
+  local disable = require("arborist.config").values.disable or {}
+  if not (lang and vim.tbl_contains(disable.highlight or {}, lang)) then
+    pcall(vim.treesitter.start, buf)
+  end
+  if lang and not vim.tbl_contains(disable.indent or {}, lang) then
     local q = require("arborist.query_safe").safe_get(lang, "indents")
     if q and #q.captures > 0 then
       vim.bo[buf].indentexpr = "v:lua.require'arborist.indent'.indentexpr()"

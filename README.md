@@ -25,15 +25,27 @@ require("arborist").setup({
 
 All options and their defaults:
 
-| Option             | Default   | Description                                             |
-| ------------------ | --------- | ------------------------------------------------------- |
-| `prefer_wasm`      | `true`    | Try WASM before native compilation                      |
-| `update_cadence`   | `"daily"` | `"daily"`, `"weekly"`, or `"manual"`                    |
-| `compiler`         | `"cc"`    | C compiler for native .so builds                        |
-| `install_popular`  | `true`    | Install popular language parsers at startup             |
-| `ensure_installed` | `{}`      | Additional parsers to install eagerly at startup        |
-| `ignore`           | `{}`      | Extra filetypes to skip (merged with registry defaults) |
-| `overrides`        | `{}`      | Extra parsers not in the registry                       |
+| Option             | Default                          | Description                                                  |
+| ------------------ | -------------------------------- | ------------------------------------------------------------ |
+| `prefer_wasm`      | `true`                           | Try WASM before native compilation                           |
+| `update_cadence`   | `"daily"`                        | `"daily"`, `"weekly"`, or `"manual"`                         |
+| `compiler`         | `"cc"`                           | C compiler for native .so builds (string or argv list)       |
+| `install_popular`  | `true`                           | Install popular language parsers at startup                  |
+| `ensure_installed` | `{}`                             | Additional parsers to install eagerly at startup             |
+| `ignore`           | `{}`                             | Extra filetypes to skip (merged with registry defaults)      |
+| `overrides`        | `{}`                             | Extra parsers not in the registry                            |
+| `disable`          | `{ highlight = {}, indent = {} }` | Per-lang opt-out for tree-sitter highlight or indent         |
+
+`disable` example — turn off TS indent for markdown and TS highlight for csv:
+
+```lua
+require("arborist").setup({
+  disable = {
+    indent = { "markdown" },
+    highlight = { "csv" },
+  },
+})
+```
 
 ## Parsers and Queries
 
