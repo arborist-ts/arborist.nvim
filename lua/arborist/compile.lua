@@ -192,12 +192,15 @@ local function resolve_base(repo_path, info)
   return nil
 end
 
---- Build WASM parser via tree-sitter CLI. Requires tree-sitter + wasi-sdk.
---- @param repo_path string
---- @param info arborist.ParserInfo
---- @param dest string Output .wasm path
---- @param callback fun(err: string?)
-function M.build_wasm(repo_path, info, dest, callback)
+-- WASM build mutex: tree-sitter CLI lazily downloads wasi-sdk (~80 MB)
+-- on first invocation into ~/.cache/tree-sitter/. The CLI does not lock
+-- its cache, so N concurrent builds during install_popular = N concurrent
+-- curl downloads of the same tarball — visibly DoS'ing small VMs (#9).
+-- Serialize all WASM builds through a single in-flight slot.
+local wasm_busy = false
+local wasm_queue = {} --- @type {[1]:string, [2]:arborist.ParserInfo, [3]:string, [4]:fun(err:string?)}[]
+
+local function _build_wasm(repo_path, info, dest, callback)
   local base = resolve_base(repo_path, info)
   if not base then callback("incomplete clone for " .. (info.location or repo_path)); return end
   vim.system({ "tree-sitter", "build", "--wasm", "-o", dest }, { cwd = base }, function(r)
@@ -207,6 +210,26 @@ function M.build_wasm(repo_path, info, dest, callback)
       pcall(os.remove, dest)
       callback("WASM build failed for " .. base .. "\n" .. cmd_output(r))
     end
+  end)
+end
+
+--- Build WASM parser via tree-sitter CLI. Requires tree-sitter + wasi-sdk.
+--- Globally serialized — see wasm_busy/wasm_queue above.
+--- @param repo_path string
+--- @param info arborist.ParserInfo
+--- @param dest string Output .wasm path
+--- @param callback fun(err: string?)
+function M.build_wasm(repo_path, info, dest, callback)
+  if wasm_busy then
+    wasm_queue[#wasm_queue + 1] = { repo_path, info, dest, callback }
+    return
+  end
+  wasm_busy = true
+  _build_wasm(repo_path, info, dest, function(err)
+    callback(err)
+    wasm_busy = false
+    local next_args = table.remove(wasm_queue, 1)
+    if next_args then M.build_wasm(next_args[1], next_args[2], next_args[3], next_args[4]) end
   end)
 end
 
