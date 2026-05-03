@@ -3,7 +3,7 @@
 --- @class arborist.Config
 --- @field prefer_wasm boolean Try WASM before native compilation
 --- @field update_cadence "daily"|"weekly"|"manual" Auto-update frequency
---- @field compiler string C compiler for native .so builds
+--- @field compiler string|string[] C compiler for native .so builds (string or argv list, e.g. {"zig","cc"})
 --- @field install_popular boolean Install popular language parsers at startup
 --- @field ensure_installed string[] Additional parsers to install eagerly at startup
 --- @field ignore string[] Extra filetypes to ignore (merged with registry defaults)

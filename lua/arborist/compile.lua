@@ -240,7 +240,9 @@ function M.build_native(repo_path, info, dest, callback)
         elseif vim.fn.filereadable(src .. "/scanner.c") == 1 then
           sources[#sources + 1] = src .. "/scanner.c"
         end
-        local cmd = { config.values.compiler, "-shared", "-fPIC", "-O2", "-I", src }
+        local compiler = config.values.compiler
+        local cmd = type(compiler) == "table" and vim.list_extend({}, compiler) or { compiler }
+        vim.list_extend(cmd, { "-shared", "-fPIC", "-O2", "-I", src })
         vim.list_extend(cmd, sources)
         if link_cpp then cmd[#cmd + 1] = "-lstdc++" end
         vim.list_extend(cmd, { "-o", dest })
