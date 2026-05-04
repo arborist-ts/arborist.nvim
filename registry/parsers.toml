@@ -347,6 +347,11 @@ readme_note = "Godot"
 url = "https://github.com/airblast-dev/tree-sitter-gdshader"
 maintainers = ["@airblast-dev"]
 
+[ghostty]
+url = "https://github.com/bezhermoso/tree-sitter-ghostty"
+maintainers = ["@bezhermoso"]
+readme_note = ["Ghostty configuration & theme files"]
+
 [git_config]
 url = "https://github.com/the-mikedavis/tree-sitter-git-config"
 maintainers = ["@amaanq"]

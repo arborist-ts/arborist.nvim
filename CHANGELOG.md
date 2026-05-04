@@ -2,6 +2,73 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.7.0 — 2026-05-04
+
+Robustness release. The startup install pipeline gains cross-instance dedup
+via PID lock files, a serialized WASM-build path that defeats the wasi-sdk
+download stampede, and automatic resolution of parser dependencies declared
+in the registry. Per-parser install progress is surfaced live during both
+the popular-set batch and on-demand single-parser installs. Two new
+configuration options (`concurrency`, `disable`) round out the release.
+
+Thanks to @frantisekstanko for deep diagnoses on #9, #10, #11, #12 and the
+three PRs (#13, #14, #15) that ship most of this release; to @LordMZTE for
+#16; to @pianocomposer321 and @jototland for #8; to @psy-q for #9; and to
+@Kreeblah for #7.
+
+### Added
+- **Auto-install of parser `requires` dependencies** (#10, #14). The
+  `requires` field in `parsers.toml` (e.g. `php` requires `php_only`,
+  `angular` requires `html` + `html_tags`) is now expanded transitively
+  before grouping by repo URL. Topologically ordered so deps build before
+  their dependents.
+- **`concurrency` config option** (#12, #13). Caps how many repos
+  clone/build in parallel during a batch install. Default `nil` (unlimited)
+  preserves existing behavior; `concurrency = 4` is a reasonable cap on
+  metered connections, `concurrency = 1` for fully sequential.
+- **`disable` config option** (#8). Per-language opt-out for tree-sitter
+  features. `disable.highlight` skips `vim.treesitter.start()`;
+  `disable.indent` skips the `indentexpr` setup. Useful for filetypes
+  where tree-sitter highlighting/indent misbehaves (e.g. csv, markdown).
+- **Per-parser install progress** (#11, #15). The startup batch now
+  reports `[N/M] lang` notifications as each parser settles, opens with
+  `Installing N parsers...`, and ends with a `Failed: ...` summary if
+  anything broke. On-demand FileType installs emit
+  `Installing <lang>...` followed by `<lang> installed` or
+  `<lang> install failed: ...`.
+- **`compiler` accepts an argv list** (#16). `config.compiler` now takes
+  either a string or a list, fixing wrapper-style invocations like
+  `compiler = { "zig", "cc" }`. Bare strings continue to work.
+- **Vimdoc coverage for `concurrency`, `disable`, and `compiler`'s argv
+  shape.** `:help arborist-options` no longer trails the README.
+- **`ghostty` parser entry and bundled queries** (synced from
+  arborist-ts/registry and arborist-ts/queries). Ghostty configuration
+  and theme files. Maintainer: @bezhermoso.
+
+### Fixed
+- **`tree-sitter build --wasm` no longer stampedes the wasi-sdk
+  download** (#9). On a fresh install with `prefer_wasm = true` and
+  `install_popular = true`, ~29 parallel WASM builds each kicked off
+  their own `curl` of the ~80 MB WASI SDK tarball, freezing small VMs.
+  WASM builds are now serialized through a single-slot mutex; the first
+  downloads the SDK, the rest reuse the cached copy. Native builds
+  remain parallel.
+- **Duplicate `git clone` / `git fetch` storms eliminated** (#12, #13).
+  Concurrent `FileType` / `BufReadPost` events for the same uninstalled
+  lang each used to spawn an independent install, multiplied by buffer
+  count. A new lock-file scheme under the repo cache claims each lang
+  atomically (`O_CREAT|O_EXCL`), then swaps the held PID to the running
+  git child so the lock survives Vim mid-install exits — a restarted
+  Neovim correctly defers to the orphan git process and only reclaims
+  the lock once it exits. Stale-PID cleanup prevents permanent blocks
+  after a real failure.
+- **In-progress lock cleared on clone failure.** Follow-up to #13: a
+  transient `git clone` error left the lock pointing at the still-alive
+  Neovim PID, so subsequent retries within the same session were
+  falsely deferred. Build-stage failures were already cleaning up; only
+  the clone-stage path needed the fix.
+- **Plaintext files no longer attempt parser install** (#7).
+
 ## 0.6.0 — 2026-04-13
 
 Architecture release. Parser pins separate from editor-neutral metadata.
