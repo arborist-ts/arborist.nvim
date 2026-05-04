@@ -29,6 +29,7 @@ filetypes = [
   "snacks_terminal",
   "startuptime",
   "TelescopePrompt",
+  "text",
   "toggleterm",
   "Trouble",
   "undotree",
