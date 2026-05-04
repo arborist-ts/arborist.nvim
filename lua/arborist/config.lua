@@ -1,13 +1,19 @@
 --- Configuration defaults and merge.
 
+--- @class arborist.DisableConfig
+--- @field highlight? string[] Langs to skip vim.treesitter.start on (no TS highlighting)
+--- @field indent? string[] Langs to skip indentexpr setup on (uses Vim default)
+
 --- @class arborist.Config
 --- @field prefer_wasm boolean Try WASM before native compilation
 --- @field update_cadence "daily"|"weekly"|"manual" Auto-update frequency
---- @field compiler string C compiler for native .so builds
+--- @field compiler string|string[] C compiler for native .so builds (string or argv list, e.g. {"zig","cc"})
 --- @field install_popular boolean Install popular language parsers at startup
 --- @field ensure_installed string[] Additional parsers to install eagerly at startup
 --- @field ignore string[] Extra filetypes to ignore (merged with registry defaults)
 --- @field overrides table<string, {url: string, location?: string}> Extra parser overrides
+--- @field concurrency integer? Max parallel repo installs (nil = unlimited)
+--- @field disable arborist.DisableConfig Per-feature, per-lang opt-out
 
 --- @type arborist.Config
 local defaults = {
@@ -22,6 +28,14 @@ local defaults = {
   ensure_installed = {},
   ignore = {},
   overrides = {},
+  -- Maximum number of repos to clone/build in parallel. nil means unlimited.
+  -- Set to 1 to install one at a time (useful on metered connections).
+  concurrency = nil,
+  -- Per-lang opt-out for tree-sitter features. Useful when a parser's
+  -- highlights/indents misbehave for a given filetype (e.g. markdown indent,
+  -- csv highlighting on huge files). Buffer-local overrides remain available
+  -- via after/ftplugin/<ft>.lua.
+  disable = { highlight = {}, indent = {} },
 }
 
 local valid_cadence = { daily = true, weekly = true, manual = true }

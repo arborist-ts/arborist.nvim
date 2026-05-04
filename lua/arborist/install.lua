@@ -33,6 +33,54 @@ function M.init(dirs)
   repo_cache = dirs.repo_cache
 end
 
+local function lock_path(lang)
+  return repo_cache .. "/" .. lang .. ".installing"
+end
+
+--- Check whether a parser install is in progress, possibly from another
+--- Neovim instance. Reads a PID file written at install start; if the
+--- PID is no longer alive the lock is stale and gets cleaned up.
+--- @param lang string
+--- @return boolean
+function M.is_installing(lang)
+  local path = lock_path(lang)
+  local f = io.open(path, "r")
+  if not f then return false end
+  local pid = tonumber(f:read("*a"))
+  f:close()
+  if not pid then os.remove(path); return false end
+  local alive = vim.uv.kill(pid, 0) == 0
+  if not alive then os.remove(path); return false end
+  return true
+end
+
+--- Atomically claim the install slot using O_CREAT|O_EXCL.
+--- Returns false if another process already holds the lock.
+--- @param lang string
+--- @return boolean
+local function mark_installing(lang)
+  local fd = vim.uv.fs_open(lock_path(lang), "wx", 420)
+  if not fd then return false end
+  vim.uv.fs_write(fd, tostring(vim.fn.getpid()), 0)
+  vim.uv.fs_close(fd)
+  return true
+end
+
+--- Overwrite the lock file with a new PID (e.g. the git clone process).
+--- Called after the clone starts so the lock survives Vim exiting.
+--- @param lang string
+--- @param pid integer
+local function update_lock_pid(lang, pid)
+  local fd = vim.uv.fs_open(lock_path(lang), "w", 420)
+  if not fd then return end
+  vim.uv.fs_write(fd, tostring(pid), 0)
+  vim.uv.fs_close(fd)
+end
+
+local function unmark_installing(lang)
+  pcall(os.remove, lock_path(lang))
+end
+
 --- Mark filetypes to ignore. Merges with existing.
 --- @param list string[]
 function M.set_ignore(list)
@@ -65,6 +113,7 @@ local function build_parser(repo_path, lang, info, opts, callback)
   local function finish(err, mode)
     if err and opts.silent then ignore[lang] = true end
     if mode then lock.record(lang, mode) end
+    unmark_installing(lang)
     callback(err)
   end
 
@@ -137,6 +186,17 @@ function M.install_batch(langs, callback, opts)
 
   langs = expand_required_dependencies(langs)
 
+  -- Skip langs already being installed by another process; atomically claim the rest.
+  -- is_installing cleans up stale locks (dead PIDs); mark_installing uses O_EXCL
+  -- so concurrent Neovim instances can't both claim the same lang.
+  local active = {}
+  for _, lang in ipairs(langs) do
+    if not M.is_installing(lang) and mark_installing(lang) then
+      active[#active + 1] = lang
+    end
+  end
+  langs = active
+
   -- Resolve all parsers and group by repo URL
   --- @type table<string, {lang: string, info: arborist.ParserInfo}[]>
   local groups = {}
@@ -161,32 +221,57 @@ function M.install_batch(langs, callback, opts)
     if groups_remaining == 0 then callback(results) end
   end
 
-  -- Clone each unique repo in parallel, then build parsers sequentially.
-  for _, url in ipairs(group_order) do
+  -- Clone each unique repo, then build parsers sequentially within each repo.
+  -- Concurrency limits how many repos are processed in parallel.
+  local max_concurrent = config.values.concurrency or math.huge
+  local active_count = 0
+  local pending_urls = {} --- @type string[]
+
+  local function start_group(url)
+    active_count = active_count + 1
     local parsers = groups[url]
 
     compile.clone_repo(parsers[1].info, repo_cache, function(err, path)
       if err then
-        for _, p in ipairs(parsers) do results[p.lang] = err end
+        for _, p in ipairs(parsers) do
+          results[p.lang] = err
+          unmark_installing(p.lang)
+        end
+        active_count = active_count - 1
         group_done()
+        if #pending_urls > 0 then start_group(table.remove(pending_urls, 1)) end
         return
       end
 
-      -- Build parsers for this repo one at a time
       local function build_next(i)
         if i > #parsers then
+          active_count = active_count - 1
           group_done()
+          if #pending_urls > 0 then start_group(table.remove(pending_urls, 1)) end
           return
         end
         local p = parsers[i]
         build_parser(path, p.lang, p.info, opts, function(build_err)
           results[p.lang] = build_err
+          if opts.progress then
+            opts.progress(p.lang, build_err)
+          end
           build_next(i + 1)
         end)
       end
 
       build_next(1)
+    end, function(git_pid)
+      for _, p in ipairs(parsers) do update_lock_pid(p.lang, git_pid) end
     end)
+  end
+
+  for _, url in ipairs(group_order) do
+    if active_count < max_concurrent then
+      start_group(url)
+    else
+      pending_urls[#pending_urls + 1] = url
+    end
   end
 end
 

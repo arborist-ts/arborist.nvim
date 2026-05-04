@@ -99,7 +99,8 @@ end
 --- @param info arborist.ParserInfo
 --- @param cache_dir string
 --- @param callback fun(err: string?, path: string?)
-function M.clone_repo(info, cache_dir, callback)
+--- @param on_pid? fun(pid: integer)  called with the git process PID right after clone starts
+function M.clone_repo(info, cache_dir, callback, on_pid)
   local url = info.url
   local revision = info.revision -- optional pin
   local name = url:match("([^/]+)$")
@@ -148,7 +149,7 @@ function M.clone_repo(info, cache_dir, callback)
     local args = revision
         and { "git", "clone", "--quiet", clone_url, clone_dest }
       or { "git", "clone", "--depth", "1", "--single-branch", "--quiet", clone_url, clone_dest }
-    vim.system(args, {}, function(r)
+    local handle = vim.system(args, {}, function(r)
       if r.code ~= 0 then
         if on_fail then on_fail() else finish_err("clone failed: " .. clone_url .. "\n" .. cmd_output(r)) end
         return
@@ -161,6 +162,7 @@ function M.clone_repo(info, cache_dir, callback)
         finish_path(clone_dest)
       end
     end)
+    if on_pid then on_pid(handle.pid) end
   end
 
   if info.fallback_url then
@@ -192,12 +194,15 @@ local function resolve_base(repo_path, info)
   return nil
 end
 
---- Build WASM parser via tree-sitter CLI. Requires tree-sitter + wasi-sdk.
---- @param repo_path string
---- @param info arborist.ParserInfo
---- @param dest string Output .wasm path
---- @param callback fun(err: string?)
-function M.build_wasm(repo_path, info, dest, callback)
+-- WASM build mutex: tree-sitter CLI lazily downloads wasi-sdk (~80 MB)
+-- on first invocation into ~/.cache/tree-sitter/. The CLI does not lock
+-- its cache, so N concurrent builds during install_popular = N concurrent
+-- curl downloads of the same tarball — visibly DoS'ing small VMs (#9).
+-- Serialize all WASM builds through a single in-flight slot.
+local wasm_busy = false
+local wasm_queue = {} --- @type {[1]:string, [2]:arborist.ParserInfo, [3]:string, [4]:fun(err:string?)}[]
+
+local function _build_wasm(repo_path, info, dest, callback)
   local base = resolve_base(repo_path, info)
   if not base then callback("incomplete clone for " .. (info.location or repo_path)); return end
   vim.system({ "tree-sitter", "build", "--wasm", "-o", dest }, { cwd = base }, function(r)
@@ -207,6 +212,26 @@ function M.build_wasm(repo_path, info, dest, callback)
       pcall(os.remove, dest)
       callback("WASM build failed for " .. base .. "\n" .. cmd_output(r))
     end
+  end)
+end
+
+--- Build WASM parser via tree-sitter CLI. Requires tree-sitter + wasi-sdk.
+--- Globally serialized — see wasm_busy/wasm_queue above.
+--- @param repo_path string
+--- @param info arborist.ParserInfo
+--- @param dest string Output .wasm path
+--- @param callback fun(err: string?)
+function M.build_wasm(repo_path, info, dest, callback)
+  if wasm_busy then
+    wasm_queue[#wasm_queue + 1] = { repo_path, info, dest, callback }
+    return
+  end
+  wasm_busy = true
+  _build_wasm(repo_path, info, dest, function(err)
+    callback(err)
+    wasm_busy = false
+    local next_args = table.remove(wasm_queue, 1)
+    if next_args then M.build_wasm(next_args[1], next_args[2], next_args[3], next_args[4]) end
   end)
 end
 
@@ -240,7 +265,9 @@ function M.build_native(repo_path, info, dest, callback)
         elseif vim.fn.filereadable(src .. "/scanner.c") == 1 then
           sources[#sources + 1] = src .. "/scanner.c"
         end
-        local cmd = { config.values.compiler, "-shared", "-fPIC", "-O2", "-I", src }
+        local compiler = config.values.compiler
+        local cmd = type(compiler) == "table" and vim.list_extend({}, compiler) or { compiler }
+        vim.list_extend(cmd, { "-shared", "-fPIC", "-O2", "-I", src })
         vim.list_extend(cmd, sources)
         if link_cpp then cmd[#cmd + 1] = "-lstdc++" end
         vim.list_extend(cmd, { "-o", dest })

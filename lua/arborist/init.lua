@@ -24,9 +24,12 @@ local function enable(buf)
   -- corrupts the terminal and (previously) cascaded query crashes into
   -- debugger launch failure.
   if vim.bo[buf].buftype ~= "" then return end
-  pcall(vim.treesitter.start, buf)
   local lang = vim.treesitter.language.get_lang(vim.bo[buf].filetype)
-  if lang then
+  local disable = require("arborist.config").values.disable or {}
+  if not (lang and vim.tbl_contains(disable.highlight or {}, lang)) then
+    pcall(vim.treesitter.start, buf)
+  end
+  if lang and not vim.tbl_contains(disable.indent or {}, lang) then
     local q = require("arborist.query_safe").safe_get(lang, "indents")
     if q and #q.captures > 0 then
       vim.bo[buf].indentexpr = "v:lua.require'arborist.indent'.indentexpr()"
@@ -96,12 +99,17 @@ function M.setup(opts)
     end
   end
 
+  local ensuring = {} --- @type table<string, boolean>
+
   --- Install a parser for a lang if needed, then enable on all matching buffers.
   --- @param lang string
   local function ensure_parser(lang)
     if install.should_skip(lang) then return end
     if parser_loaded(lang) then enable_bufs(lang); return end
+    if ensuring[lang] then return end
+    ensuring[lang] = true
     install.install(lang, function(err)
+      ensuring[lang] = nil
       if err then return end
       vim.schedule(function() enable_bufs(lang) end)
     end, { silent = true })
@@ -121,26 +129,37 @@ function M.setup(opts)
     for _, lang in ipairs(to_install) do
       if install.should_skip(lang) then -- skip
       elseif parser_loaded(lang) then enable_bufs(lang)
+      elseif install.is_installing(lang) then
       else needed[#needed + 1] = lang end
     end
 
     if #needed == 0 then return end
-    log.info("Installing parsers...")
+    local total = #needed
+    local done = 0
+    log.info("Installing " .. total .. " parsers...")
     install.install_batch(needed, function(results)
       local failed = {}
       for lang, err in pairs(results) do
         if err then failed[#failed + 1] = lang .. " (" .. err .. ")" end
       end
-      if #failed == 0 then
-        log.info("Parser installation complete")
-      else
+      if #failed > 0 then
         table.sort(failed)
         log.warn("Failed: " .. table.concat(failed, ", "))
       end
       vim.schedule(function()
         for _, l in ipairs(needed) do enable_bufs(l) end
       end)
-    end, { silent = true })
+    end, {
+      silent = true,
+      progress = function(lang, err)
+        done = done + 1
+        if err then
+          log.warn(string.format("[%d/%d] %s failed", done, total, lang))
+        else
+          log.info(string.format("[%d/%d] %s", done, total, lang))
+        end
+      end,
+    })
   end
 
   batch_install()
