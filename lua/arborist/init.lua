@@ -125,22 +125,32 @@ function M.setup(opts)
     end
 
     if #needed == 0 then return end
-    log.info("Installing parsers...")
+    local total = #needed
+    local done = 0
+    log.info("Installing " .. total .. " parsers...")
     install.install_batch(needed, function(results)
       local failed = {}
       for lang, err in pairs(results) do
         if err then failed[#failed + 1] = lang .. " (" .. err .. ")" end
       end
-      if #failed == 0 then
-        log.info("Parser installation complete")
-      else
+      if #failed > 0 then
         table.sort(failed)
         log.warn("Failed: " .. table.concat(failed, ", "))
       end
       vim.schedule(function()
         for _, l in ipairs(needed) do enable_bufs(l) end
       end)
-    end, { silent = true })
+    end, {
+      silent = true,
+      progress = function(lang, err)
+        done = done + 1
+        if err then
+          log.warn(string.format("[%d/%d] %s failed", done, total, lang))
+        else
+          log.info(string.format("[%d/%d] %s", done, total, lang))
+        end
+      end,
+    })
   end
 
   batch_install()

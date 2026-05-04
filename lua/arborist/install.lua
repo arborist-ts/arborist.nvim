@@ -159,6 +159,9 @@ function M.install_batch(langs, callback, opts)
         local p = parsers[i]
         build_parser(path, p.lang, p.info, opts, function(build_err)
           results[p.lang] = build_err
+          if opts.progress then
+            opts.progress(p.lang, build_err)
+          end
           build_next(i + 1)
         end)
       end
