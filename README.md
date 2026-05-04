@@ -125,6 +125,10 @@ arborist.nvim releases self-contained.
 - A C compiler (fallback when `tree-sitter` CLI is unavailable)
 - For WASM: Neovim built with `ENABLE_WASMTIME=ON`
 
+## Code of Conduct
+
+This project follows the [Builder's Code of Conduct](https://builderscode.org). See [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
 ## License
 
 [MIT](LICENSE)
