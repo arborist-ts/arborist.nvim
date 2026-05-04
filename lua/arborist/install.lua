@@ -211,7 +211,10 @@ function M.install_batch(langs, callback, opts)
 
     compile.clone_repo(parsers[1].info, repo_cache, function(err, path)
       if err then
-        for _, p in ipairs(parsers) do results[p.lang] = err end
+        for _, p in ipairs(parsers) do
+          results[p.lang] = err
+          unmark_installing(p.lang)
+        end
         active_count = active_count - 1
         group_done()
         if #pending_urls > 0 then start_group(table.remove(pending_urls, 1)) end
