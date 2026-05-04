@@ -34,6 +34,7 @@ All options and their defaults:
 | `ensure_installed` | `{}`      | Additional parsers to install eagerly at startup        |
 | `ignore`           | `{}`      | Extra filetypes to skip (merged with registry defaults) |
 | `overrides`        | `{}`      | Extra parsers not in the registry                       |
+| `concurrency`      | `nil`     | Max repos to clone/build in parallel (`nil` = unlimited) |
 
 ## Parsers and Queries
 

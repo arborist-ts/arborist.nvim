@@ -99,7 +99,8 @@ end
 --- @param info arborist.ParserInfo
 --- @param cache_dir string
 --- @param callback fun(err: string?, path: string?)
-function M.clone_repo(info, cache_dir, callback)
+--- @param on_pid? fun(pid: integer)  called with the git process PID right after clone starts
+function M.clone_repo(info, cache_dir, callback, on_pid)
   local url = info.url
   local revision = info.revision -- optional pin
   local name = url:match("([^/]+)$")
@@ -148,7 +149,7 @@ function M.clone_repo(info, cache_dir, callback)
     local args = revision
         and { "git", "clone", "--quiet", clone_url, clone_dest }
       or { "git", "clone", "--depth", "1", "--single-branch", "--quiet", clone_url, clone_dest }
-    vim.system(args, {}, function(r)
+    local handle = vim.system(args, {}, function(r)
       if r.code ~= 0 then
         if on_fail then on_fail() else finish_err("clone failed: " .. clone_url .. "\n" .. cmd_output(r)) end
         return
@@ -161,6 +162,7 @@ function M.clone_repo(info, cache_dir, callback)
         finish_path(clone_dest)
       end
     end)
+    if on_pid then on_pid(handle.pid) end
   end
 
   if info.fallback_url then
