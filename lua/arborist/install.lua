@@ -156,22 +156,28 @@ local function build_parser(repo_path, lang, info, opts, callback)
 end
 
 --- Expand a lang list to include all transitive requires deps.
---- Deps precede their dependents; duplicates are removed.
+--- Deps precede their dependents; duplicates are removed. Sub-deps
+--- without a real registry entry are skipped — some `requires` arrays
+--- name query-namespace pseudo-parsers (e.g. `ecma`, `jsx`, `html_tags`)
+--- that share queries via `; inherits:` directives but have no installable
+--- grammar at any URL. Top-level user-requested langs still go through
+--- the heuristic fallback.
 --- @param langs string[]
 --- @return string[]
 local function expand_required_dependencies(langs)
   local seen = {}
   local result = {}
-  local function add(lang)
+  local function add(lang, is_dep)
     if seen[lang] then return end
     seen[lang] = true
+    if is_dep and not registry.has(lang) then return end
     local info = registry.resolve(lang)
     if info.requires then
-      for _, dep in ipairs(info.requires) do add(dep) end
+      for _, dep in ipairs(info.requires) do add(dep, true) end
     end
     result[#result + 1] = lang
   end
-  for _, lang in ipairs(langs) do add(lang) end
+  for _, lang in ipairs(langs) do add(lang, false) end
   return result
 end
 

@@ -177,6 +177,19 @@ function M.load()
   return false
 end
 
+--- Whether `lang` has an explicit registry entry (or user override).
+--- False means resolve() would synthesize a heuristic URL — those URLs
+--- are unsafe to install transitively as a `requires` dep, since some
+--- `requires` entries (e.g. `ecma`, `jsx`, `html_tags`) name query-only
+--- pseudo-parsers that share queries via `; inherits:`, not real grammars.
+--- @param lang string
+--- @return boolean
+function M.has(lang)
+  if config.values.overrides[lang] then return true end
+  M.load()
+  return entries ~= nil and entries[lang] ~= nil
+end
+
 --- Resolve a language to parser info.
 --- Priority: user overrides → bundled registry merged with pins → heuristic.
 --- @param lang string
