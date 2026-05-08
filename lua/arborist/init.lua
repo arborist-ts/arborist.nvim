@@ -147,9 +147,7 @@ function M.setup(opts)
     end
 
     if #needed == 0 then return end
-    local total = #needed
-    local done = 0
-    log.info("Installing " .. total .. " parsers...")
+    log.info("Installing parsers...")
     install.install_batch(needed, function(results)
       local failed = {}
       for lang, err in pairs(results) do
@@ -164,8 +162,7 @@ function M.setup(opts)
       end)
     end, {
       silent = true,
-      progress = function(lang, err)
-        done = done + 1
+      progress = function(lang, err, done, total)
         if err then
           log.warn(string.format("[%d/%d] %s failed", done, total, lang))
         else

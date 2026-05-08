@@ -184,9 +184,16 @@ end
 --- Install multiple parsers. Groups by repo URL — each repo is cloned once,
 --- then parsers sharing that repo are built sequentially from the same clone.
 --- Repo groups run in parallel.
+---
+--- The progress callback (if provided) is invoked once per lang with the
+--- arguments `(lang, err, done, total)`, where `total` reflects the actual
+--- number of parsers being installed (after `requires` expansion and after
+--- skipping langs already locked by another process). Callers should use
+--- the passed `total` for display — pre-call counts can be off when deps
+--- get auto-added.
 --- @param langs string[]
 --- @param callback fun(results: table<string, string?>) lang → error or nil
---- @param opts? {silent?: boolean}
+--- @param opts? {silent?: boolean, progress?: fun(lang: string, err: string?, done: integer, total: integer)}
 function M.install_batch(langs, callback, opts)
   opts = opts or {}
 
@@ -202,6 +209,20 @@ function M.install_batch(langs, callback, opts)
     end
   end
   langs = active
+
+  -- Wrap progress so done/total are tracked centrally and passed through.
+  -- This is the only place that knows the post-expansion, post-filter total.
+  local total = #langs
+  local done = 0
+  local user_progress = opts.progress
+  if user_progress then
+    opts = vim.tbl_extend("force", opts, {
+      progress = function(lang, err)
+        done = done + 1
+        user_progress(lang, err, done, total)
+      end,
+    })
+  end
 
   -- Resolve all parsers and group by repo URL
   --- @type table<string, {lang: string, info: arborist.ParserInfo}[]>
