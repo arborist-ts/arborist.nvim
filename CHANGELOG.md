@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.7.1 — 2026-05-09
+
+Bug-fix release.
+
+Thanks to @tyilo for #17 and to @psy-q for catching the off-by-one in
+the #9 follow-up.
+
+### Fixed
+- **No more phantom installs of `ecma`, `jsx`, `html_tags`** (#17). Some
+  registry entries declare `requires = ["ecma", ...]` to inherit highlight
+  queries via `; inherits:` directives, but those names aren't installable
+  parsers — there is no `tree-sitter-ecma` repo. Arborist was treating
+  every `requires` entry as something to clone, producing GitHub auth
+  prompts and `Failed: ecma (clone failed: ...), jsx (...), html_tags (...)`
+  warnings on every startup. Transitive `requires` are now filtered to
+  entries with a real registry record; top-level user-requested langs still
+  hit the heuristic fallback.
+- **Install progress counter no longer overshoots** (follow-up from #9).
+  The `[N/total] lang` line could read `[23/22]` when `requires` expansion
+  added a real dep that wasn't in the user's request (e.g. asking for
+  `tsx` pulls in `typescript`). The total reported during the batch is now
+  the post-expansion, post-lock-filter count, so `done` and `total` always
+  line up.
+
 ## 0.7.0 — 2026-05-04
 
 Robustness release. The startup install pipeline gains cross-instance dedup
