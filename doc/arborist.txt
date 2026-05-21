@@ -66,6 +66,15 @@ prefer_wasm ~
     to build a WASM parser from source, and only falls back to native .so
     compilation if the WASM build fails or Neovim lacks wasmtime support.
 
+                                              *arborist.wasm_build_timeout*
+wasm_build_timeout ~
+    Type: `integer`, Default: `300000`
+
+    Milliseconds before a `tree-sitter build --wasm` is aborted. The first
+    WASM build lazily downloads ~80 MB of wasi-sdk; if that download stalls
+    the build would otherwise hang indefinitely. On a timeout arborist gives
+    up on WASM for the rest of the session and compiles parsers natively.
+
                                                   *arborist.update_cadence*
 update_cadence ~
     Type: `string`, Default: `"daily"`
@@ -188,9 +197,10 @@ disable ~
     and last update time.
 
                                                         *:ArboristInstall*
-:ArboristInstall {lang}
-    Install a parser for {lang}. Uses the same fallback chain as automatic
-    installation: WASM build, then native build.
+:ArboristInstall {lang} [{lang} ...]
+    Install parsers for one or more languages. Uses the same fallback chain
+    as automatic installation: WASM build, then native build. Per-parser
+    progress and any failures are reported as the install runs.
 
                                                          *:ArboristUpdate*
 :ArboristUpdate

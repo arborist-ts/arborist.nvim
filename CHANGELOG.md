@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+- **Parser installs no longer fail silently** (#18). A `tree-sitter build
+  --wasm` that stalls — typically the lazy ~80 MB wasi-sdk download on the
+  first WASM build — would hang forever, and because WASM builds are
+  serialized that froze the whole batch behind it with no output beyond
+  `Installing parsers...`. WASM builds now honour a `wasm_build_timeout`
+  (default 5 min); on a timeout arborist reports it, gives up on WASM for
+  the session, and compiles natively. WASM build errors that were previously
+  discarded are now logged. `:ArboristInstall` gained per-parser progress
+  and a failure summary — it was completely silent before — and now accepts
+  multiple languages.
+
 ## 0.7.1 — 2026-05-09
 
 Bug-fix release.

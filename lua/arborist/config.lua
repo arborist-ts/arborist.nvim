@@ -6,6 +6,7 @@
 
 --- @class arborist.Config
 --- @field prefer_wasm boolean Try WASM before native compilation
+--- @field wasm_build_timeout integer Milliseconds before a WASM build is aborted
 --- @field update_cadence "daily"|"weekly"|"manual" Auto-update frequency
 --- @field compiler string|string[] C compiler for native .so builds (string or argv list, e.g. {"zig","cc"})
 --- @field install_popular boolean Install popular language parsers at startup
@@ -18,6 +19,12 @@
 --- @type arborist.Config
 local defaults = {
   prefer_wasm = true,
+  -- Milliseconds before a `tree-sitter build --wasm` is aborted. The first
+  -- WASM build lazily downloads ~80 MB of wasi-sdk; if that stalls, the build
+  -- would otherwise hang forever and (because WASM builds are serialized) take
+  -- the whole batch install down with it. On a timeout arborist gives up on
+  -- WASM and compiles natively instead.
+  wasm_build_timeout = 300000,
   update_cadence = "daily",
   compiler = vim.env.CC or "cc",
   -- Install popular parsers at startup. Covers the most popular programming

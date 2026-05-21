@@ -202,17 +202,31 @@ end
 local wasm_busy = false
 local wasm_queue = {} --- @type {[1]:string, [2]:arborist.ParserInfo, [3]:string, [4]:fun(err:string?)}[]
 
+--- @param callback fun(err: string?, timed_out: boolean?)
 local function _build_wasm(repo_path, info, dest, callback)
   local base = resolve_base(repo_path, info)
   if not base then callback("incomplete clone for " .. (info.location or repo_path)); return end
-  vim.system({ "tree-sitter", "build", "--wasm", "-o", dest }, { cwd = base }, function(r)
-    if r.code == 0 and valid_file(dest) then
-      callback(nil)
-    else
-      pcall(os.remove, dest)
-      callback("WASM build failed for " .. base .. "\n" .. cmd_output(r))
-    end
-  end)
+  -- vim.system raises synchronously if the binary can't be spawned. Guard it:
+  -- an unhandled throw here would never reset wasm_busy, stranding every
+  -- queued WASM build behind a mutex that's locked forever.
+  local ok, err = pcall(vim.system,
+    { "tree-sitter", "build", "--wasm", "-o", dest },
+    { cwd = base, timeout = config.values.wasm_build_timeout },
+    function(r)
+      if r.code == 0 and valid_file(dest) then
+        callback(nil)
+      else
+        pcall(os.remove, dest)
+        -- A non-zero signal means the process was killed — effectively always
+        -- our own timeout firing (SIGTERM). Report it as a distinct condition
+        -- so the caller can stop retrying WASM for the rest of the batch.
+        callback("WASM build failed for " .. base .. "\n" .. cmd_output(r),
+          (r.signal or 0) ~= 0)
+      end
+    end)
+  if not ok then
+    callback("WASM build could not start: " .. tostring(err))
+  end
 end
 
 --- Build WASM parser via tree-sitter CLI. Requires tree-sitter + wasi-sdk.
@@ -220,15 +234,15 @@ end
 --- @param repo_path string
 --- @param info arborist.ParserInfo
 --- @param dest string Output .wasm path
---- @param callback fun(err: string?)
+--- @param callback fun(err: string?, timed_out: boolean?)
 function M.build_wasm(repo_path, info, dest, callback)
   if wasm_busy then
     wasm_queue[#wasm_queue + 1] = { repo_path, info, dest, callback }
     return
   end
   wasm_busy = true
-  _build_wasm(repo_path, info, dest, function(err)
-    callback(err)
+  _build_wasm(repo_path, info, dest, function(err, timed_out)
+    callback(err, timed_out)
     wasm_busy = false
     local next_args = table.remove(wasm_queue, 1)
     if next_args then M.build_wasm(next_args[1], next_args[2], next_args[3], next_args[4]) end

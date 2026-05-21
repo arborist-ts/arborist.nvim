@@ -201,10 +201,34 @@ function M.setup(opts)
     desc = "Show arborist status",
   })
   vim.api.nvim_create_user_command("ArboristInstall", function(c)
-    install.install(c.args)
+    -- Report progress and results. The bare install.install(c.args) used here
+    -- before passed no callback and no progress handler, so the command was
+    -- silent on both success and failure.
+    log.info("Installing parsers...")
+    install.install_batch(c.fargs, function(results)
+      local failed = {}
+      for lang, err in pairs(results) do
+        if err then failed[#failed + 1] = lang .. " (" .. err .. ")" end
+      end
+      if #failed > 0 then
+        table.sort(failed)
+        log.warn("Failed: " .. table.concat(failed, ", "))
+      end
+      vim.schedule(function()
+        for _, l in ipairs(c.fargs) do enable_bufs(l) end
+      end)
+    end, {
+      progress = function(lang, err, done, total)
+        if err then
+          log.warn(string.format("[%d/%d] %s failed", done, total, lang))
+        else
+          log.info(string.format("[%d/%d] %s", done, total, lang))
+        end
+      end,
+    })
   end, {
-    nargs = 1,
-    desc = "Install a tree-sitter parser",
+    nargs = "+",
+    desc = "Install tree-sitter parsers",
   })
   vim.api.nvim_create_user_command("ArboristUpdate", function()
     update.update_all(install.install, repo_cache)
