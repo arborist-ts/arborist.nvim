@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+- **Tree-sitter folding** (#19), on by default. For buffers whose language has
+  a bundled `folds` query, arborist sets `foldmethod=expr` and `foldexpr` — the
+  same way it sets `indentexpr` from an `indents` query — and raises the
+  window's `foldlevel` so files open expanded, never collapsed. It only ever
+  touches a window still at the factory `foldmethod=manual`, and only once, so
+  it never overrides a `foldmethod` you set (ftplugin, modeline, diff mode) nor
+  re-clobbers `foldlevel` after you change it. Three states: left unset is
+  cautious auto (also stays out when nvim-ufo is loaded); `fold = true` is
+  assertive (folds even alongside nvim-ufo); `fold = false` disables it.
+  Per-language opt-out via `disable.fold`. arborist sets `foldlevel` once per
+  window but never touches `foldenable`.
+
 ## 0.7.1 — 2026-05-09
 
 Bug-fix release.
