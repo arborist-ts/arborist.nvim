@@ -52,6 +52,20 @@ local function valid_file(path)
   return size ~= nil and size > 100
 end
 
+--- Read the tree-sitter ABI version declared in a generated parser.c.
+--- Every generated parser.c carries a `#define LANGUAGE_VERSION <n>` line in
+--- its first few KB. Safe in any context (pure Lua IO).
+--- @param parser_c string  Path to src/parser.c
+--- @return integer? abi  nil if unreadable or the define isn't found
+local function parser_abi_version(parser_c)
+  local f = io.open(parser_c, "rb")
+  if not f then return nil end
+  local head = f:read(4096) or ""
+  f:close()
+  local v = head:match("#define%s+LANGUAGE_VERSION%s+(%d+)")
+  return v and tonumber(v) or nil
+end
+
 -- Clone deduplication: concurrent clones to the same URL share one git operation.
 local cloning = {} --- @type table<string, fun(err: string?, path: string?)[]>
 
@@ -279,14 +293,32 @@ function M.build_native(repo_path, info, dest, callback)
     end)
   end
 
-  -- Generate parser.c if missing (some grammars only ship grammar.js)
-  if vim.uv.fs_stat(base .. "/src/parser.c") then
-    do_build()
-  else
+  local function generate_then_build()
     vim.system({ "tree-sitter", "generate" }, { cwd = base }, function(r)
       if r.code ~= 0 then callback("tree-sitter generate failed for " .. base .. "\n" .. cmd_output(r))
       else do_build() end
     end)
+  end
+
+  local parser_c = base .. "/src/parser.c"
+  if not vim.uv.fs_stat(parser_c) then
+    -- Some grammars only ship grammar.js — generate parser.c first.
+    generate_then_build()
+    return
+  end
+
+  -- A checked-in parser.c can be stale: grammars generated with an ancient
+  -- tree-sitter declare an ABI version Neovim refuses to load (#20). When the
+  -- declared ABI is too old and the grammar can be regenerated, refresh it
+  -- with the local CLI (which emits a current ABI) before building. Guarded
+  -- on the ABI check, so parsers that already load fine are never touched.
+  local abi = parser_abi_version(parser_c)
+  if (not abi or abi < vim.treesitter.minimum_language_version)
+    and vim.uv.fs_stat(base .. "/grammar.js")
+  then
+    generate_then_build()
+  else
+    do_build()
   end
 end
 

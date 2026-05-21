@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+- **Outdated parsers no longer "install" then fail to load** (#20). Some
+  grammar repos ship a pre-generated `src/parser.c` built with a tree-sitter
+  ABI too old for Neovim 0.12 (e.g. `fluent`). arborist built it as-is, so the
+  `.so` loaded with `ABI version mismatch`. arborist now checks the ABI of a
+  checked-in `parser.c` and regenerates it with the local tree-sitter CLI when
+  it's too old. Native builds are also verified by loading the `.so` after the
+  build (as WASM builds already were) — a parser that can't load is reported
+  with the underlying error instead of being silently recorded as installed.
+
 ## 0.7.1 — 2026-05-09
 
 Bug-fix release.
