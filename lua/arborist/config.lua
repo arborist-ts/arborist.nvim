@@ -11,7 +11,7 @@
 --- @field update_cadence "daily"|"weekly"|"manual" Auto-update frequency
 --- @field compiler string|string[] C compiler for native .so builds (string or argv list, e.g. {"zig","cc"})
 --- @field install_popular boolean Install popular language parsers at startup
---- @field ensure_installed string[] Additional parsers to install eagerly at startup
+--- @field ensure_installed "all"|string[] Parsers to install eagerly at startup. A list of parser names, or the string "all" to install every parser in the registry.
 --- @field ignore string[] Extra filetypes to ignore (merged with registry defaults)
 --- @field overrides table<string, {url: string, location?: string}> Extra parser overrides
 --- @field concurrency integer? Max parallel repo installs (nil = unlimited)
@@ -34,6 +34,8 @@ local defaults = {
   -- like render-markdown.nvim. Set to false to disable.
   install_popular = true,
   -- Additional parsers to install eagerly at startup (beyond the popular set).
+  -- A list of parser names, or the string "all" to install every parser in
+  -- the registry.
   ensure_installed = {},
   ignore = {},
   overrides = {},

@@ -175,14 +175,38 @@ function M.setup(opts)
       "markdown", "markdown_inline", "python", "regex", "ruby", "rust",
       "toml", "tsx", "typescript", "vim", "vimdoc", "xml", "yaml",
     } or {}
-    vim.list_extend(to_install, config.values.ensure_installed)
+    -- `ensure_installed` is either a list of parser names or the sentinel
+    -- string "all", which expands to every parser in the registry so users
+    -- can opt into installing everything up front.
+    local ensure = config.values.ensure_installed
+    if ensure == "all" then
+      vim.list_extend(to_install, registry.names())
+    else
+      vim.list_extend(to_install, ensure)
+    end
 
     local needed = {}
     for _, lang in ipairs(to_install) do
       if install.should_skip(lang) then -- skip
-      elseif parser_loaded(lang) then enable_bufs(lang)
+      -- is_installed is a cheap fs_stat; parser_loaded would dlopen every
+      -- already-built parser into memory, which costs seconds at startup
+      -- when ensure_installed = "all". Parsers load lazily on FileType.
+      elseif install.is_installed(lang) then
       elseif install.is_installing(lang) then
       else needed[#needed + 1] = lang end
+    end
+
+    -- Enable tree-sitter on buffers already open before setup() ran (FileType
+    -- has already fired for them). Bounded by the number of open buffers, so
+    -- it stays cheap even with the full registry — we only load the handful of
+    -- parsers actually in use, not every installed one.
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].buftype == "" then
+        local lang = detect_lang(buf)
+        if lang and not install.should_skip(lang) and install.is_installed(lang) then
+          enable(buf)
+        end
+      end
     end
 
     if #needed == 0 then return end

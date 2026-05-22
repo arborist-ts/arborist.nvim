@@ -190,6 +190,20 @@ function M.has(lang)
   return entries ~= nil and entries[lang] ~= nil
 end
 
+--- Every parser name with an explicit registry entry, sorted. Used to
+--- expand the `"all"` sentinel in `ensure_installed`. Heuristic-only langs
+--- (no registry entry) are not included since they can't be enumerated.
+--- @return string[]
+function M.names()
+  M.load()
+  local out = {}
+  if entries then
+    for lang in pairs(entries) do out[#out + 1] = lang end
+  end
+  table.sort(out)
+  return out
+end
+
 --- Resolve a language to parser info.
 --- Priority: user overrides → bundled registry merged with pins → heuristic.
 --- @param lang string

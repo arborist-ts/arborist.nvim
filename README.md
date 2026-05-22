@@ -31,7 +31,7 @@ All options and their defaults:
 | `update_cadence`   | `"daily"`                         | `"daily"`, `"weekly"`, or `"manual"`                       |
 | `compiler`         | `"cc"`                            | C compiler for native .so builds (string or argv list)     |
 | `install_popular`  | `true`                            | Install popular language parsers at startup                |
-| `ensure_installed` | `{}`                              | Additional parsers to install eagerly at startup           |
+| `ensure_installed` | `{}`                              | Parsers to install eagerly at startup; list of names or `"all"` |
 | `ignore`           | `{}`                              | Extra filetypes to skip (merged with registry defaults)    |
 | `overrides`        | `{}`                              | Extra parsers not in the registry                          |
 | `concurrency`      | `nil`                             | Max repos to clone/build in parallel (`nil` = unlimited)   |
@@ -62,7 +62,17 @@ programming languages, common config/data formats (JSON, YAML, TOML, XML,
 INI, Dockerfile, Makefile), and parsers needed by popular plugins like
 [render-markdown.nvim](https://github.com/MeanderingProgrammer/render-markdown.nvim)
 (markdown, markdown_inline, html, latex). Set `install_popular = false`
-to disable. Use `ensure_installed` to add parsers beyond the popular set.
+to disable. Use `ensure_installed` to add parsers beyond the popular set —
+either a list of parser names, or the string `"all"` to install every parser
+in the registry up front:
+
+```lua
+require("arborist").setup({
+  ensure_installed = { "go", "rust" }, -- specific parsers
+  -- or
+  ensure_installed = "all",            -- every parser in the registry
+})
+```
 
 **Everything else** installs on demand — open a file and arborist handles
 the rest.
