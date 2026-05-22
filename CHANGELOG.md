@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 ### Added
+- **`ensure_installed = "all"`.** Beyond a list of parser names,
+  `ensure_installed` now accepts the sentinel string `"all"`, which expands
+  to every parser in the bundled registry. A new `registry.names()`
+  enumerates the registered parsers and the sentinel is expanded at startup.
 - **Tree-sitter folding** (#19), on by default. For buffers whose language has
   a bundled `folds` query, arborist sets `foldmethod=expr` and `foldexpr` — the
   same way it sets `indentexpr` from an `indents` query — and raises the
@@ -18,6 +22,17 @@ All notable changes to this project will be documented in this file.
   window but never touches `foldenable`.
 
 ### Fixed
+- **A large `ensure_installed` no longer freezes startup.** The startup
+  `batch_install` decided what to install by calling
+  `vim.treesitter.language.add` on every name in the list — and that
+  `dlopen`s each installed parser into memory on the main thread. The more
+  parsers in `ensure_installed`, the longer the synchronous load blocked the
+  UI; `ensure_installed = "all"` was the worst case, loading hundreds of
+  parsers and stalling for seconds, and it defeated lazy loading throughout.
+  A new cheap `install.is_installed` (an `fs_stat` check, no load) now drives
+  the install decision, and tree-sitter is enabled only on already-open
+  buffers rather than across the whole registry. Parsers still load lazily on
+  `FileType`.
 - **Parser installs no longer fail silently** (#18). A `tree-sitter build
   --wasm` that stalls — typically the lazy ~80 MB wasi-sdk download on the
   first WASM build — would hang forever, and because WASM builds are
