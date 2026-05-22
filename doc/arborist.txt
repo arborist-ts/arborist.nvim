@@ -165,16 +165,45 @@ concurrency ~
           concurrency = 4,
         })
 <
+                                                          *arborist.fold*
+fold ~
+    Type: `boolean`, Default: `true` (cautious auto — see below)
+
+    Tree-sitter folding. For every buffer whose language has a bundled
+    `folds` query, arborist sets `foldmethod=expr` and `foldexpr` to
+    `v:lua.vim.treesitter.foldexpr()` — the same way it sets `indentexpr`
+    from an `indents` query — and raises the window's `foldlevel` so the
+    file opens expanded, never collapsed.
+
+    arborist only ever touches a window still at Neovim's factory
+    `foldmethod=manual`, and only once. It never overrides a `foldmethod`
+    you (or an ftplugin, a modeline, or diff mode) set, and never
+    re-clobbers `foldlevel` after you change it. It sets `foldlevel` once
+    per window but never touches `foldenable`.
+
+    Three states:
+      - left unset — cautious auto: folding is on, but arborist also
+        stays out when nvim-ufo is loaded.
+      - `fold = true` — assertive: fold even alongside nvim-ufo.
+      - `fold = false` — disable folding entirely.
+
+    Use `disable.fold` to opt out of folding for specific languages.
+    >lua
+        require("arborist").setup({
+          fold = false,
+        })
+<
                                                        *arborist.disable*
 disable ~
-    Type: `{highlight?: string[], indent?: string[]}`,
-    Default: `{ highlight = {}, indent = {} }`
+    Type: `{highlight?: string[], indent?: string[], fold?: string[]}`,
+    Default: `{ highlight = {}, indent = {}, fold = {} }`
 
     Per-language opt-out for tree-sitter features. Languages listed in
     `disable.highlight` skip `vim.treesitter.start()`; languages in
-    `disable.indent` skip the `indentexpr` setup. Useful when a
-    grammar's queries misbehave for a given filetype (e.g. markdown
-    indent, csv highlighting on huge files).
+    `disable.indent` skip the `indentexpr` setup; languages in
+    `disable.fold` skip the `foldexpr` setup. Useful when a grammar's
+    queries misbehave for a given filetype (e.g. markdown indent, csv
+    highlighting on huge files).
 
     For per-buffer (rather than global) overrides use
     `vim.treesitter.stop(buf)` or `:setlocal indentexpr=` from
@@ -184,6 +213,7 @@ disable ~
           disable = {
             indent = { "markdown" },
             highlight = { "csv" },
+            fold = { "yaml" },
           },
         })
 <

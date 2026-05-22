@@ -118,9 +118,23 @@ local function build_parser(repo_path, lang, info, opts, callback)
   end
 
   local function try_native()
+    local so_path = parser_dir .. "/" .. lang .. ".so"
     vim.schedule(function()
-      compile.build_native(repo_path, info, parser_dir .. "/" .. lang .. ".so", function(err)
+      compile.build_native(repo_path, info, so_path, function(err)
         vim.schedule(function()
+          -- A build can succeed yet produce a parser Neovim can't load — a
+          -- stale grammar's old tree-sitter ABI, or a corrupt .so. Native
+          -- builds weren't verified before (only WASM was), so those failures
+          -- were silent. Load it now and surface any error.
+          if not err then
+            local ok, ret, add_err = pcall(vim.treesitter.language.add, lang, { path = so_path })
+            if not (ok and ret == true) then
+              pcall(os.remove, so_path)
+              local detail = (not ok and tostring(ret)) or add_err or "rejected by Neovim"
+              err = "native parser failed to load for " .. lang .. ": " .. detail
+              log.warn(err)
+            end
+          end
           finish(err, err and nil or "native")
         end)
       end)

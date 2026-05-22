@@ -3,6 +3,7 @@
 --- @class arborist.DisableConfig
 --- @field highlight? string[] Langs to skip vim.treesitter.start on (no TS highlighting)
 --- @field indent? string[] Langs to skip indentexpr setup on (uses Vim default)
+--- @field fold? string[] Langs to skip foldexpr setup on (uses Vim default folding)
 
 --- @class arborist.Config
 --- @field prefer_wasm boolean Try WASM before native compilation
@@ -14,6 +15,7 @@
 --- @field ignore string[] Extra filetypes to ignore (merged with registry defaults)
 --- @field overrides table<string, {url: string, location?: string}> Extra parser overrides
 --- @field concurrency integer? Max parallel repo installs (nil = unlimited)
+--- @field fold boolean Tree-sitter folding — unset: cautious auto, true: assertive, false: off
 --- @field disable arborist.DisableConfig Per-feature, per-lang opt-out
 
 --- @type arborist.Config
@@ -38,11 +40,20 @@ local defaults = {
   -- Maximum number of repos to clone/build in parallel. nil means unlimited.
   -- Set to 1 to install one at a time (useful on metered connections).
   concurrency = nil,
+  -- Tree-sitter folding. Left unset, arborist enables folding (foldmethod=expr
+  -- + foldexpr) for buffers whose language has a bundled `folds` query, but
+  -- only on a window still at the factory foldmethod=manual, and it stays out
+  -- when nvim-ufo is loaded. It raises that window's foldlevel once so the
+  -- file opens expanded — never collapsed. Set fold=true to fold assertively
+  -- even alongside nvim-ufo; set fold=false to disable. arborist sets
+  -- foldlevel once per window but never touches foldenable. Per-lang opt-out
+  -- via disable.fold.
+  fold = true,
   -- Per-lang opt-out for tree-sitter features. Useful when a parser's
-  -- highlights/indents misbehave for a given filetype (e.g. markdown indent,
-  -- csv highlighting on huge files). Buffer-local overrides remain available
-  -- via after/ftplugin/<ft>.lua.
-  disable = { highlight = {}, indent = {} },
+  -- highlights/indents/folds misbehave for a given filetype (e.g. markdown
+  -- indent, csv highlighting on huge files). Buffer-local overrides remain
+  -- available via after/ftplugin/<ft>.lua.
+  disable = { highlight = {}, indent = {}, fold = {} },
 }
 
 local valid_cadence = { daily = true, weekly = true, manual = true }
@@ -52,10 +63,15 @@ local M = {}
 --- @type arborist.Config
 M.values = vim.deepcopy(defaults)
 
+--- Whether the user explicitly passed `fold` to setup(). Distinguishes the
+--- cautious-auto default (unset) from an explicit `fold = true` (assertive).
+M.fold_explicit = false
+
 --- Merge user options into config. Validates values.
 --- @param opts? table
 function M.setup(opts)
   M.values = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
+  M.fold_explicit = opts ~= nil and opts.fold ~= nil
   assert(valid_cadence[M.values.update_cadence],
     "[arborist] invalid update_cadence: " .. tostring(M.values.update_cadence))
 end
