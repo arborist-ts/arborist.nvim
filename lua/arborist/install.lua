@@ -94,6 +94,17 @@ function M.should_skip(lang)
   return ignore[lang] or false
 end
 
+--- Is a parser already built on disk? A cheap stat that, unlike
+--- `vim.treesitter.language.add`, does NOT dlopen the parser into memory.
+--- Used to decide what to install without eagerly loading every installed
+--- parser at startup (critical when `ensure_installed = "all"`).
+--- @param lang string
+--- @return boolean
+function M.is_installed(lang)
+  return vim.uv.fs_stat(parser_dir .. "/" .. lang .. ".so") ~= nil
+    or vim.uv.fs_stat(parser_dir .. "/" .. lang .. ".wasm") ~= nil
+end
+
 --- Build a single parser from a cloned repo. Tries WASM first, then native.
 --- @param repo_path string  Cloned repo on disk
 --- @param lang string
