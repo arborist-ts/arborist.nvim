@@ -175,7 +175,15 @@ function M.setup(opts)
       "markdown", "markdown_inline", "python", "regex", "ruby", "rust",
       "toml", "tsx", "typescript", "vim", "vimdoc", "xml", "yaml",
     } or {}
-    vim.list_extend(to_install, config.values.ensure_installed)
+    -- `ensure_installed` is either a list of parser names or the sentinel
+    -- string "all", which expands to every parser in the registry so users
+    -- can opt into installing everything up front.
+    local ensure = config.values.ensure_installed
+    if ensure == "all" then
+      vim.list_extend(to_install, registry.names())
+    else
+      vim.list_extend(to_install, ensure)
+    end
 
     local needed = {}
     for _, lang in ipairs(to_install) do
