@@ -5,6 +5,7 @@
 --- @field indent? string[] Langs to skip indentexpr setup on (uses Vim default)
 
 --- @class arborist.Config
+--- @field automatic_install boolean Auto-install parsers when opening files with missing parsers
 --- @field prefer_wasm boolean Try WASM before native compilation
 --- @field update_cadence "daily"|"weekly"|"manual" Auto-update frequency
 --- @field compiler string|string[] C compiler for native .so builds (string or argv list, e.g. {"zig","cc"})
@@ -17,6 +18,7 @@
 
 --- @type arborist.Config
 local defaults = {
+  automatic_install = true,
   prefer_wasm = true,
   update_cadence = "daily",
   compiler = vim.env.CC or "cc",
