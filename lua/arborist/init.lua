@@ -106,6 +106,7 @@ function M.setup(opts)
   local function ensure_parser(lang)
     if install.should_skip(lang) then return end
     if parser_loaded(lang) then enable_bufs(lang); return end
+    if not config.values.automatic_install then return end
     if ensuring[lang] then return end
     -- Cross-actor guard: another batch_install or another Neovim instance
     -- is already on it. Stay silent so we don't double-notify.
