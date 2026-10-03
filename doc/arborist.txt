@@ -92,13 +92,48 @@ compiler ~
 install_popular ~
     Type: `boolean`, Default: `true`
 
-    Install parsers for common languages eagerly at startup. Covers popular
-    programming languages (c, python, rust, go, javascript, typescript, ...),
-    config formats (json, yaml, toml, xml, ini, dockerfile, make), and
-    parsers needed by popular plugins like render-markdown.nvim (markdown,
-    markdown_inline, html, latex).
+    Install parsers for common languages eagerly at startup.
+    Covers popular programming languages, config formats, and parsers needed
+    by popular plugins like render-markdown.nvim.
+
+    See |arborist-popular-parsers| for the full parser list.
 
     Set to `false` to disable eager installation.
+
+                                                  *arborist-popular-parsers*
+Popular parsers ~
+
+    The following parsers are included when
+    `install_popular = true`:
+
+    • bash
+    • c
+    • cpp
+    • css
+    • diff
+    • dockerfile
+    • go
+    • html
+    • ini
+    • java
+    • javascript
+    • json
+    • latex
+    • lua
+    • make
+    • markdown
+    • markdown_inline
+    • python
+    • regex
+    • ruby
+    • rust
+    • toml
+    • tsx
+    • typescript
+    • vim
+    • vimdoc
+    • xml
+    • yaml
 
                                                 *arborist.ensure_installed*
 ensure_installed ~
