@@ -25,17 +25,18 @@ require("arborist").setup({
 
 All options and their defaults:
 
-| Option             | Default                           | Description                                                |
-| ------------------ | --------------------------------- | ---------------------------------------------------------- |
-| `prefer_wasm`      | `true`                            | Try WASM before native compilation                         |
-| `update_cadence`   | `"daily"`                         | `"daily"`, `"weekly"`, or `"manual"`                       |
-| `compiler`         | `"cc"`                            | C compiler for native .so builds (string or argv list)     |
-| `install_popular`  | `true`                            | Install popular language parsers at startup                |
-| `ensure_installed` | `{}`                              | Additional parsers to install eagerly at startup           |
-| `ignore`           | `{}`                              | Extra filetypes to skip (merged with registry defaults)    |
-| `overrides`        | `{}`                              | Extra parsers not in the registry                          |
-| `concurrency`      | `nil`                             | Max repos to clone/build in parallel (`nil` = unlimited)   |
-| `disable`          | `{ highlight = {}, indent = {} }` | Per-lang opt-out for tree-sitter highlight or indent       |
+| Option               | Default                           | Description                                                  |
+| -------------------- | --------------------------------- | ------------------------------------------------------------ |
+| `automatic_install`  | `true`                            | Auto-install parsers when opening files with missing parsers |
+| `prefer_wasm`        | `true`                            | Try WASM before native compilation                           |
+| `update_cadence`     | `"daily"`                         | `"daily"`, `"weekly"`, or `"manual"`                         |
+| `compiler`           | `"cc"`                            | C compiler for native .so builds (string or argv list)       |
+| `install_popular`    | `true`                            | Install popular language parsers at startup                  |
+| `ensure_installed`   | `{}`                              | Additional parsers to install eagerly at startup             |
+| `ignore`             | `{}`                              | Extra filetypes to skip (merged with registry defaults)      |
+| `overrides`          | `{}`                              | Extra parsers not in the registry                            |
+| `concurrency`        | `nil`                             | Max repos to clone/build in parallel (`nil` = unlimited)     |
+| `disable`            | `{ highlight = {}, indent = {} }` | Per-lang opt-out for tree-sitter highlight or indent         |
 
 `disable` example — turn off TS indent for markdown and TS highlight for csv:
 
@@ -65,7 +66,9 @@ INI, Dockerfile, Makefile), and parsers needed by popular plugins like
 to disable. Use `ensure_installed` to add parsers beyond the popular set.
 
 **Everything else** installs on demand — open a file and arborist handles
-the rest.
+the rest. Set `automatic_install = false` to disable on-demand installation
+entirely; parsers from `install_popular` and `ensure_installed` are still
+installed, and `:ArboristInstall` remains available for manual installs.
 
 ## How It Works
 
