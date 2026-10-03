@@ -25,6 +25,7 @@ function M.check()
   end
 
   local compiler = require("arborist.config").values.compiler
+  if type(compiler) == "table" then compiler = compiler[1] end
   if vim.fn.executable(compiler) == 1 then vim.health.ok("C compiler: " .. compiler)
   else vim.health.warn("C compiler not found: " .. compiler, {
     "Needed as fallback for native .so builds",
