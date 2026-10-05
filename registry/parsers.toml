@@ -1064,7 +1064,7 @@ maintainers = ["@theoo"]
 
 [slint]
 url = "https://github.com/slint-ui/tree-sitter-slint"
-maintainers = ["@hunger"]
+maintainers = ["@LeonMatthes"]
 
 [smali]
 url = "https://github.com/tree-sitter-grammars/tree-sitter-smali"
