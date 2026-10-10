@@ -563,7 +563,7 @@ maintainers = ["@rmuir"]
 [javascript]
 url = "https://github.com/tree-sitter/tree-sitter-javascript"
 maintainers = ["@steelsojka"]
-requires = ["ecma", "jsx"]
+requires = ["ecma", "jsx", "jsdoc", "regex"]
 
 [jinja]
 url = "https://github.com/cathaysia/tree-sitter-jinja"
