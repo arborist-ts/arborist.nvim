@@ -18,6 +18,12 @@ All notable changes to this project will be documented in this file.
   window but never touches `foldenable`.
 
 ### Fixed
+- **No more Git credential prompts during installs** (#27). For
+  languages with no registry entry the resolver guesses GitHub URLs,
+  and on Windows each failed guess opened a GitHub credential dialog.
+  Git clone and fetch now run non-interactively
+  (GIT_TERMINAL_PROMPT=0, GCM_INTERACTIVE=never), so a URL that does
+  not exist fails cleanly with an error instead of prompting.
 - **Indentation honors `indent.immediate`** (#26). The indent evaluator
   discarded query capture metadata, so the `(#set! indent.immediate 1)`
   directives in the bundled indents queries (Python, Rust, Swift, and

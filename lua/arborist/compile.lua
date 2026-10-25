@@ -6,6 +6,13 @@ local config = require("arborist.config")
 
 local M = {}
 
+-- Environment for git network operations. Arborist clones guessed URLs
+-- for languages with no registry entry; when a guess does not exist, git
+-- must fail cleanly instead of asking for credentials.
+-- GIT_TERMINAL_PROMPT=0 covers terminal prompts, GCM_INTERACTIVE=never
+-- covers the Git Credential Manager dialog on Windows. (#27)
+local git_env = { GIT_TERMINAL_PROMPT = "0", GCM_INTERACTIVE = "never" }
+
 --- Truncate and clean command output for inclusion in error messages.
 --- @param r vim.SystemCompleted
 --- @return string
@@ -88,10 +95,10 @@ local function ensure_revision(dest, revision, callback)
         return
       end
       -- Shallow clone doesn't have the SHA locally — unshallow then retry.
-      vim.system({ "git", "-C", dest, "fetch", "--unshallow", "--quiet" }, {}, function(r_fetch)
+      vim.system({ "git", "-C", dest, "fetch", "--unshallow", "--quiet" }, { env = git_env }, function(r_fetch)
         -- If already a full clone, `--unshallow` errors; fall through either way.
         local _ = r_fetch
-        vim.system({ "git", "-C", dest, "fetch", "--quiet", "origin", revision }, {}, function(r_fetch2)
+        vim.system({ "git", "-C", dest, "fetch", "--quiet", "origin", revision }, { env = git_env }, function(r_fetch2)
           local _ = r_fetch2
           vim.system({ "git", "-C", dest, "checkout", "--quiet", "--detach", revision }, {}, function(r_co2)
             if r_co2.code == 0 then
@@ -163,7 +170,7 @@ function M.clone_repo(info, cache_dir, callback, on_pid)
     local args = revision
         and { "git", "clone", "--quiet", clone_url, clone_dest }
       or { "git", "clone", "--depth", "1", "--single-branch", "--quiet", clone_url, clone_dest }
-    local handle = vim.system(args, {}, function(r)
+    local handle = vim.system(args, { env = git_env }, function(r)
       if r.code ~= 0 then
         if on_fail then on_fail() else finish_err("clone failed: " .. clone_url .. "\n" .. cmd_output(r)) end
         return

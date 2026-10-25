@@ -6,6 +6,10 @@ local registry = require("arborist.registry")
 
 local M = {}
 
+-- Git network calls run non-interactively (see compile.lua): a failed
+-- fetch must never pop up a credential prompt. (#27)
+local git_env = { GIT_TERMINAL_PROMPT = "0", GCM_INTERACTIVE = "never" }
+
 --- Check if a cached repo has new upstream commits.
 --- @param repo_dir string
 --- @param callback fun(changed: boolean)
@@ -17,7 +21,7 @@ local function check_changed(repo_dir, callback)
   end
   vim.system({ "git", "-C", repo_dir, "rev-parse", "HEAD" }, { text = true }, function(old)
     local old_rev = (old.stdout or ""):gsub("%s+", "")
-    vim.system({ "git", "-C", repo_dir, "fetch", "--depth", "1", "--quiet" }, {}, function(fetch)
+    vim.system({ "git", "-C", repo_dir, "fetch", "--depth", "1", "--quiet" }, { env = git_env }, function(fetch)
       if fetch.code ~= 0 then
         callback(false) -- fetch failed, skip this parser
         return
