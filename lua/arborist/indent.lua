@@ -16,14 +16,15 @@ function M.indentexpr()
   local query = qs.safe_get(lang, "indents")
   if not query then return -1 end
 
-  -- Build node-id -> set-of-capture-names
-  local cap = {} ---@type table<integer, table<string, true>>
-  for id, node in qs.safe_iter_captures(query, lang, "indents", root, bufnr) do
+  -- Build node-id -> capture names, keeping each capture's query metadata
+  -- (e.g. (#set! indent.immediate 1)) for the indent.begin checks below.
+  local cap = {} ---@type table<integer, table<string, table|true>>
+  for id, node, meta in qs.safe_iter_captures(query, lang, "indents", root, bufnr) do
     local name = query.captures[id]
     if name:sub(1, 1) ~= "_" then
       local nid = node:id()
       if not cap[nid] then cap[nid] = {} end
-      cap[nid][name] = true
+      cap[nid][name] = meta or true
     end
   end
 
@@ -58,7 +59,10 @@ function M.indentexpr()
       if c["indent.branch"] and srow == lnum - 1 then indent = indent - sw; did = true end
       if c["indent.dedent"] and srow ~= lnum - 1 then indent = indent - sw; did = true end
       local is_in_err = node:parent() and node:parent():has_error()
-      if c["indent.begin"] and (srow ~= erow or is_in_err) and srow ~= lnum - 1 then
+      local begin_meta = type(c["indent.begin"]) == "table" and c["indent.begin"] or nil
+      local immediate = begin_meta and begin_meta["indent.immediate"]
+      local same_line = begin_meta and begin_meta["indent.start_at_same_line"]
+      if c["indent.begin"] and (srow ~= erow or is_in_err or immediate) and (srow ~= lnum - 1 or same_line) then
         indent = indent + sw; did = true
       end
       if did then seen[srow] = true end

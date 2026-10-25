@@ -18,6 +18,13 @@ All notable changes to this project will be documented in this file.
   window but never touches `foldenable`.
 
 ### Fixed
+- **Indentation honors `indent.immediate`** (#26). The indent evaluator
+  discarded query capture metadata, so the `(#set! indent.immediate 1)`
+  directives in the bundled indents queries (Python, Rust, Swift, and
+  others) never took effect: the line after a single-line block opener
+  such as `if x:` stayed at column 0. Capture metadata is now preserved,
+  and `indent.begin` also honors `indent.start_at_same_line`, matching
+  nvim-treesitter's evaluator.
 - **Parser installs no longer fail silently** (#18). A `tree-sitter build
   --wasm` that stalls — typically the lazy ~80 MB wasi-sdk download on the
   first WASM build — would hang forever, and because WASM builds are
