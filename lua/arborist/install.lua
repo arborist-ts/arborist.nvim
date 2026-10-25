@@ -118,9 +118,23 @@ local function build_parser(repo_path, lang, info, opts, callback)
   end
 
   local function try_native()
+    local so_path = parser_dir .. "/" .. lang .. ".so"
     vim.schedule(function()
-      compile.build_native(repo_path, info, parser_dir .. "/" .. lang .. ".so", function(err)
+      compile.build_native(repo_path, info, so_path, function(err)
         vim.schedule(function()
+          -- A build can succeed yet produce a parser Neovim can't load — a
+          -- stale grammar's old tree-sitter ABI, or a corrupt .so. Native
+          -- builds weren't verified before (only WASM was), so those failures
+          -- were silent. Load it now and surface any error.
+          if not err then
+            local ok, ret, add_err = pcall(vim.treesitter.language.add, lang, { path = so_path })
+            if not (ok and ret == true) then
+              pcall(os.remove, so_path)
+              local detail = (not ok and tostring(ret)) or add_err or "rejected by Neovim"
+              err = "native parser failed to load for " .. lang .. ": " .. detail
+              log.warn(err)
+            end
+          end
           finish(err, err and nil or "native")
         end)
       end)
@@ -130,7 +144,7 @@ local function build_parser(repo_path, lang, info, opts, callback)
   local try_wasm = config.values.prefer_wasm and M.wasm_supported ~= false
   if try_wasm then
     local wasm_path = parser_dir .. "/" .. lang .. ".wasm"
-    compile.build_wasm(repo_path, info, wasm_path, function(werr)
+    compile.build_wasm(repo_path, info, wasm_path, function(werr, timed_out)
       if not werr then
         vim.schedule(function()
           local lok, _, lerr = pcall(vim.treesitter.language.add, lang, { path = wasm_path })
@@ -147,6 +161,15 @@ local function build_parser(repo_path, lang, info, opts, callback)
           end
         end)
       else
+        -- The WASM error was previously swallowed entirely — surface it.
+        log.warn("WASM build failed for " .. lang .. ": " .. werr)
+        -- A timeout means the WASM toolchain itself is unusable (a stalled
+        -- wasi-sdk download), not a quirk of this one grammar. Stop retrying
+        -- WASM for the rest of the batch so it can't stall again.
+        if timed_out and M.wasm_supported == nil then
+          M.wasm_supported = false
+          log.info("WASM toolchain unavailable (build timed out), using native compilation")
+        end
         try_native()
       end
     end)

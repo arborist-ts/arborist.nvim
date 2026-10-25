@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+- **Tree-sitter folding** (#19), on by default. For buffers whose language has
+  a bundled `folds` query, arborist sets `foldmethod=expr` and `foldexpr` — the
+  same way it sets `indentexpr` from an `indents` query — and raises the
+  window's `foldlevel` so files open expanded, never collapsed. It only ever
+  touches a window still at the factory `foldmethod=manual`, and only once, so
+  it never overrides a `foldmethod` you set (ftplugin, modeline, diff mode) nor
+  re-clobbers `foldlevel` after you change it. Three states: left unset is
+  cautious auto (also stays out when nvim-ufo is loaded); `fold = true` is
+  assertive (folds even alongside nvim-ufo); `fold = false` disables it.
+  Per-language opt-out via `disable.fold`. arborist sets `foldlevel` once per
+  window but never touches `foldenable`.
+
+### Fixed
+- **Parser installs no longer fail silently** (#18). A `tree-sitter build
+  --wasm` that stalls — typically the lazy ~80 MB wasi-sdk download on the
+  first WASM build — would hang forever, and because WASM builds are
+  serialized that froze the whole batch behind it with no output beyond
+  `Installing parsers...`. WASM builds now honour a `wasm_build_timeout`
+  (default 5 min); on a timeout arborist reports it, gives up on WASM for
+  the session, and compiles natively. WASM build errors that were previously
+  discarded are now logged. `:ArboristInstall` gained per-parser progress
+  and a failure summary — it was completely silent before — and now accepts
+  multiple languages.
+- **Outdated parsers no longer "install" then fail to load** (#20). Some
+  grammar repos ship a pre-generated `src/parser.c` built with a tree-sitter
+  ABI too old for Neovim 0.12 (e.g. `fluent`). arborist built it as-is, so the
+  `.so` loaded with `ABI version mismatch`. arborist now checks the ABI of a
+  checked-in `parser.c` and regenerates it with the local tree-sitter CLI when
+  it's too old. Native builds are also verified by loading the `.so` after the
+  build (as WASM builds already were) — a parser that can't load is reported
+  with the underlying error instead of being silently recorded as installed.
+
 ## 0.7.1 — 2026-05-09
 
 Bug-fix release.

@@ -12,7 +12,40 @@ local function parser_loaded(lang)
   return ok and result == true
 end
 
---- Enable treesitter highlighting and indentation on a buffer.
+--- Apply tree-sitter folding to a buffer as shown in a window.
+--- One-shot per window: arborist only acts on a window still at the factory
+--- `foldmethod=manual`. Once it sets `expr`, later calls no-op — so a user's
+--- own `zM`/`foldlevel` afterward is never re-clobbered, and a configured
+--- `foldmethod` (marker/indent/syntax), a modeline, an ftplugin, or diff mode
+--- is never overridden. It raises `foldlevel` so the file opens expanded, not
+--- collapsed. With `fold` left unset (cautious auto) arborist also stays out
+--- when nvim-ufo is loaded; an explicit `fold=true` is assertive and skips
+--- that check. `foldmethod`/`foldexpr`/`foldlevel` are window-local; a window
+--- left with them after switching to a non-tree-sitter buffer is harmless
+--- (`vim.treesitter.foldexpr()` reports no folds there).
+--- @param buf integer
+--- @param win integer
+local function apply_fold(buf, win)
+  if not (vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_win_is_valid(win)) then return end
+  if vim.bo[buf].buftype ~= "" then return end
+  local config = require("arborist.config")
+  if not config.values.fold then return end
+  local lang = vim.treesitter.language.get_lang(vim.bo[buf].filetype)
+  if not lang then return end
+  if vim.tbl_contains((config.values.disable or {}).fold or {}, lang) then return end
+  -- One-shot guard: only touch a window at the factory default foldmethod.
+  if vim.wo[win].foldmethod ~= "manual" then return end
+  -- Cautious-auto default keeps out of nvim-ufo's way; explicit fold=true skips this.
+  if not config.fold_explicit and package.loaded["ufo"] ~= nil then return end
+  local q = require("arborist.query_safe").safe_get(lang, "folds")
+  if q and #q.captures > 0 then
+    vim.wo[win].foldmethod = "expr"
+    vim.wo[win].foldexpr = "v:lua.vim.treesitter.foldexpr()"
+    vim.wo[win].foldlevel = 99
+  end
+end
+
+--- Enable treesitter highlighting, indentation, and folding on a buffer.
 --- @param buf integer
 local function enable(buf)
   if not vim.api.nvim_buf_is_valid(buf) then return end
@@ -34,6 +67,12 @@ local function enable(buf)
     if q and #q.captures > 0 then
       vim.bo[buf].indentexpr = "v:lua.require'arborist.indent'.indentexpr()"
     end
+  end
+  -- Folding is window-local — apply to every window currently showing the buf.
+  -- Background buffers with no window yet are handled by the BufWinEnter
+  -- autocmd when they're first displayed.
+  for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+    apply_fold(buf, win)
   end
 end
 
@@ -197,15 +236,48 @@ function M.setup(opts)
     end,
   })
 
+  -- Apply folding when a buffer enters a window. Covers background buffers
+  -- that had no window at BufReadPost time, since foldexpr is window-local.
+  vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = group,
+    callback = function(ev)
+      apply_fold(ev.buf, vim.api.nvim_get_current_win())
+    end,
+  })
+
   -- Commands
   vim.api.nvim_create_user_command("Arborist", function() M.status() end, {
     desc = "Show arborist status",
   })
   vim.api.nvim_create_user_command("ArboristInstall", function(c)
-    install.install(c.args)
+    -- Report progress and results. The bare install.install(c.args) used here
+    -- before passed no callback and no progress handler, so the command was
+    -- silent on both success and failure.
+    log.info("Installing parsers...")
+    install.install_batch(c.fargs, function(results)
+      local failed = {}
+      for lang, err in pairs(results) do
+        if err then failed[#failed + 1] = lang .. " (" .. err .. ")" end
+      end
+      if #failed > 0 then
+        table.sort(failed)
+        log.warn("Failed: " .. table.concat(failed, ", "))
+      end
+      vim.schedule(function()
+        for _, l in ipairs(c.fargs) do enable_bufs(l) end
+      end)
+    end, {
+      progress = function(lang, err, done, total)
+        if err then
+          log.warn(string.format("[%d/%d] %s failed", done, total, lang))
+        else
+          log.info(string.format("[%d/%d] %s", done, total, lang))
+        end
+      end,
+    })
   end, {
-    nargs = 1,
-    desc = "Install a tree-sitter parser",
+    nargs = "+",
+    desc = "Install tree-sitter parsers",
   })
   vim.api.nvim_create_user_command("ArboristUpdate", function()
     update.update_all(install.install, repo_cache)
