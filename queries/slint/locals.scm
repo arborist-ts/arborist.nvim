@@ -3,6 +3,7 @@
   (block)
   (callback_event)
   (component)
+  (closure_expression)
   (enum_block)
   (function_definition)
   (global_definition)
@@ -14,6 +15,9 @@
   (_) @local.definition.field)
 
 (argument) @local.definition.var
+
+(closure_expression
+  argument: (simple_identifier) @local.definition.var)
 
 (callback
   name: (_) @local.definition.field)

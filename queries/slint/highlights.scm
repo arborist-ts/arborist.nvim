@@ -54,6 +54,9 @@
 ; Functions and callbacks
 (argument) @variable.parameter
 
+(closure_expression
+  argument: (simple_identifier) @variable.parameter)
+
 (function_call
   name: (_) @function.call)
 
@@ -105,6 +108,7 @@
   "=>"
   "->"
   "<=>"
+  "<<"
 ] @operator
 
 ; Punctuation
@@ -148,6 +152,18 @@
 
 (property_assignment
   property: (simple_identifier) @property)
+
+(slot_declaration
+  name: (simple_identifier) @property)
+
+(slot_assignment
+  name: (simple_identifier) @property)
+
+(slot_forwarding
+  name: (simple_identifier) @property)
+
+(implement_statement
+  target: (simple_identifier) @variable)
 
 (callback
   name: (simple_identifier) @variable)
@@ -199,6 +215,14 @@
 (keys
   "+" @operator)
 
+[
+  (shadowable)
+  (testable)
+] @attribute
+
+(property_deprecation
+  "@deprecated" @attribute)
+
 ; Keywords:
 (animate_option_identifier) @keyword
 
@@ -213,6 +237,12 @@
 
 (if_statement
   "if" @keyword.conditional)
+
+(match_element
+  "match" @keyword.conditional)
+
+(wildcard_match_case
+  "*" @operator)
 
 (if_expr
   [
@@ -262,6 +292,12 @@
 (function_declaration
   "function" @keyword.function)
 
+(implement_statement
+  "implement" @keyword)
+
+(slot_declaration
+  "slot" @keyword)
+
 (global_definition
   "global" @keyword)
 
@@ -290,16 +326,6 @@
 
 (struct_definition
   "struct" @keyword.type)
-
-(uses_clause
-  "uses" @keyword)
-
-(used_interface
-  "from" @keyword.import
-  source: (_) @variable)
-
-(implements_clause
-  "implements" @keyword)
 
 (transitions_definition
   [

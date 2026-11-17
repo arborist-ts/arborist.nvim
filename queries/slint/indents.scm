@@ -4,6 +4,7 @@
   (enum_block)
   (global_block)
   (imperative_block)
+  (match_element)
   (struct_block)
   (typed_identifier)
 ] @indent.begin
@@ -13,6 +14,7 @@
   (enum_block)
   (global_block)
   (imperative_block)
+  (match_element)
   (struct_block)
 ]
   "}" @indent.end)

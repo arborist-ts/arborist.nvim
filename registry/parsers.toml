@@ -14,6 +14,9 @@
 #   readme_note   Human-readable note (gotchas, scope, dialect)
 #
 # 2026-04-13 | 329 parsers | synced from nvim-treesitter main
+[actions]
+url = "https://github.com/ClearHeadToDo-Devs/tree-sitter-actions"
+maintainers = ["@ca-mantis-shrimp"]
 
 [ada]
 url = "https://github.com/briot/tree-sitter-ada"
@@ -732,6 +735,21 @@ maintainers = ["@Decodetalkers"]
 url = "https://github.com/artagnon/tree-sitter-mlir"
 generate = true
 maintainers = ["@artagnon"]
+
+[moonbit]
+url = "https://github.com/moonbitlang/tree-sitter-moonbit"
+requires = ["comment"]
+readme_note = "MoonBit source/interface files and moon.pkg"
+
+[moonbit_mbtp]
+url = "https://github.com/moonbitlang/tree-sitter-moonbit"
+location = "grammars/mbtp"
+readme_note = "MoonBit predicate files"
+
+[moonbit_quotation]
+url = "https://github.com/moonbitlang/tree-sitter-moonbit"
+location = "grammars/quotation"
+readme_note = "Quoted MoonBit grammar"
 
 [muttrc]
 url = "https://github.com/neomutt/tree-sitter-muttrc"

@@ -7,5 +7,6 @@
   (function_definition)
   (global_definition)
   (imperative_block)
+  (match_element)
   (struct_block)
 ] @fold
